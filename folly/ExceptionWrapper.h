@@ -137,7 +137,7 @@ auto fold(Fn&& fn, A&& a, B&& b, Bs&&... bs) {
 //! // Thread2: Exceptions are ok!
 //! void processResult() {
 //!   try {
-//!     globalExceptionWrapper.throwException();
+//!     globalExceptionWrapper.throw_exception();
 //!   } catch (const FacePlantException& e) {
 //!     LOG(ERROR) << "FACEPLANT!";
 //!   } catch (const FailWhaleException& e) {
@@ -226,8 +226,8 @@ class exception_wrapper final {
 
     Buffer() : buff_{} {}
 
-    template <class Ex, class DEx = _t<std::decay<Ex>>>
-    Buffer(in_place_t, Ex&& ex);
+    template <class Ex, typename... As>
+    Buffer(in_place_type_t<Ex>, As&&... as_);
     template <class Ex>
     Ex& as() noexcept;
     template <class Ex>
@@ -258,8 +258,12 @@ class exception_wrapper final {
         "Surprise! std::exception and std::type_info don't have alignment "
         "greater than one. as_int_ below will not work!");
 
-    static std::uintptr_t as_int_(std::exception const& e);
-    static std::uintptr_t as_int_(AnyException e);
+    static std::uintptr_t as_int_(
+        std::exception_ptr const& ptr,
+        std::exception const& e);
+    static std::uintptr_t as_int_(
+        std::exception_ptr const& ptr,
+        AnyException e);
     bool has_exception_() const;
     std::exception const* as_exception_() const;
     std::type_info const* as_type_() const;
@@ -305,10 +309,10 @@ class exception_wrapper final {
     struct Impl final : public Base {
       Ex ex_;
       Impl() = default;
-      explicit Impl(Ex const& ex) : Base{typeid(ex)}, ex_(ex) {}
-      explicit Impl(Ex&& ex)
-          : Base{typeid(ex)},
-            ex_(std::move(ex)){}[[noreturn]] void throw_() const override;
+      template <typename... As>
+      explicit Impl(As&&... as)
+          : Base{typeid(Ex)}, ex_(std::forward<As>(as)...) {}
+      [[noreturn]] void throw_() const override;
       std::exception const* get_exception_() const noexcept override;
       exception_wrapper get_exception_ptr_() const noexcept override;
     };
@@ -331,11 +335,11 @@ class exception_wrapper final {
   };
   VTable const* vptr_{&uninit_};
 
-  template <class Ex, class DEx = _t<std::decay<Ex>>>
-  exception_wrapper(Ex&& ex, OnHeapTag);
+  template <class Ex, typename... As>
+  exception_wrapper(OnHeapTag, in_place_type_t<Ex>, As&&... as);
 
-  template <class Ex, class DEx = _t<std::decay<Ex>>>
-  exception_wrapper(Ex&& ex, InSituTag);
+  template <class Ex, typename... As>
+  exception_wrapper(InSituTag, in_place_type_t<Ex>, As&&... as);
 
   template <class T>
   struct IsRegularExceptionType
@@ -414,7 +418,7 @@ class exception_wrapper final {
       class Ex,
       class Ex_ = _t<std::decay<Ex>>,
       FOLLY_REQUIRES(
-          Conjunction<IsStdException<Ex_>, IsRegularExceptionType<Ex_>>())>
+          Conjunction<IsStdException<Ex_>, IsRegularExceptionType<Ex_>>::value)>
   /* implicit */ exception_wrapper(Ex&& ex);
 
   //! \pre `typeid(ex) == typeid(typename decay<Ex>::type)`
@@ -427,8 +431,14 @@ class exception_wrapper final {
   template <
       class Ex,
       class Ex_ = _t<std::decay<Ex>>,
-      FOLLY_REQUIRES(IsRegularExceptionType<Ex_>())>
+      FOLLY_REQUIRES(IsRegularExceptionType<Ex_>::value)>
   exception_wrapper(in_place_t, Ex&& ex);
+
+  template <
+      class Ex,
+      typename... As,
+      FOLLY_REQUIRES(IsRegularExceptionType<Ex>::value)>
+  exception_wrapper(in_place_type_t<Ex>, As&&... as);
 
   //! Swaps the value of `*this` with the value of `that`
   void swap(exception_wrapper& that) noexcept;
@@ -456,6 +466,18 @@ class exception_wrapper final {
   std::exception* get_exception() noexcept;
   //! \overload
   std::exception const* get_exception() const noexcept;
+
+  //! \returns a pointer to the `Ex` held by `*this`, if it holds an object
+  //!     whose type `From` permits `std::is_convertible<From*, Ex*>`;
+  //!     otherwise, returns `nullptr`.
+  //! \note This function does not mutate the `exception_wrapper` object.
+  //! \note This function may cause an exception to be thrown and immediately
+  //!     caught internally, affecting runtime performance.
+  template <typename Ex>
+  Ex* get_exception() noexcept;
+  //! \overload
+  template <typename Ex>
+  Ex const* get_exception() const noexcept;
 
   //! \return A `std::exception_ptr` that references either the exception held
   //!     by `*this`, or a copy of same.
@@ -499,7 +521,7 @@ class exception_wrapper final {
 
   //! \pre `bool(*this)`
   //! Throws the wrapped expression.
-  [[noreturn]] void throwException() const;
+  [[noreturn]] void throw_exception() const;
 
   //! Call `fn` with the wrapped exception (if any), if `fn` can accept it.
   //! \par Example
@@ -542,7 +564,7 @@ class exception_wrapper final {
   //! ew.handle(
   //!   [&](std::logic_error const& e) {
   //!      LOG(DFATAL) << "ruh roh";
-  //!      ew.throwException(); // rethrow the active exception without
+  //!      ew.throw_exception(); // rethrow the active exception without
   //!                           // slicing it. Will not be caught by other
   //!                           // handlers in this call.
   //!   },
@@ -582,7 +604,7 @@ constexpr exception_wrapper::VTable exception_wrapper::InPlace<Ex>::ops_;
  */
 template <class Ex, typename... As>
 exception_wrapper make_exception_wrapper(As&&... as) {
-  return exception_wrapper{Ex{std::forward<As>(as)...}};
+  return exception_wrapper{in_place<Ex>, std::forward<As>(as)...};
 }
 
 /**
@@ -634,7 +656,7 @@ inline exception_wrapper try_and_catch_(F&& f) {
 //!
 //! \par Example Usage:
 //! \code
-//! // This catches my runtime_error and if I call throwException() on ew, it
+//! // This catches my runtime_error and if I call throw_exception() on ew, it
 //! // will throw a runtime_error
 //! auto ew = folly::try_and_catch<std::exception, std::runtime_error>([=]() {
 //!   if (badThingHappens()) {
@@ -642,7 +664,7 @@ inline exception_wrapper try_and_catch_(F&& f) {
 //!   }
 //! });
 //!
-//! // This will catch the exception and if I call throwException() on ew, it
+//! // This will catch the exception and if I call throw_exception() on ew, it
 //! // will throw a std::exception
 //! auto ew = folly::try_and_catch<std::exception, std::runtime_error>([=]() {
 //!   if (badThingHappens()) {

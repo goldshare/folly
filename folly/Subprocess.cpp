@@ -22,8 +22,6 @@
 
 #if __linux__
 #include <sys/prctl.h>
-#include <sys/syscall.h>
-#include <unistd.h>
 #endif
 #include <fcntl.h>
 
@@ -45,6 +43,7 @@
 #include <folly/io/Cursor.h>
 #include <folly/portability/Sockets.h>
 #include <folly/portability/Stdlib.h>
+#include <folly/portability/SysSyscall.h>
 #include <folly/portability/Unistd.h>
 
 constexpr int kExecFailure = 127;
@@ -113,19 +112,24 @@ std::string ProcessReturnCode::str() const {
 }
 
 CalledProcessError::CalledProcessError(ProcessReturnCode rc)
-  : returnCode_(rc),
-    what_(returnCode_.str()) {
+    : SubprocessError(rc.str()), returnCode_(rc) {}
+
+static inline std::string toSubprocessSpawnErrorMessage(
+    char const* executable,
+    int errCode,
+    int errnoValue) {
+  auto prefix = errCode == kExecFailure ? "failed to execute "
+                                        : "error preparing to execute ";
+  return to<std::string>(prefix, executable, ": ", errnoStr(errnoValue));
 }
 
-SubprocessSpawnError::SubprocessSpawnError(const char* executable,
-                                           int errCode,
-                                           int errnoValue)
-  : errnoValue_(errnoValue),
-    what_(to<std::string>(errCode == kExecFailure ?
-                            "failed to execute " :
-                            "error preparing to execute ",
-                          executable, ": ", errnoStr(errnoValue))) {
-}
+SubprocessSpawnError::SubprocessSpawnError(
+    const char* executable,
+    int errCode,
+    int errnoValue)
+    : SubprocessError(
+          toSubprocessSpawnErrorMessage(executable, errCode, errnoValue)),
+      errnoValue_(errnoValue) {}
 
 namespace {
 
@@ -546,11 +550,11 @@ void Subprocess::readChildErrorPipe(int pfd, const char* executable) {
   throw SubprocessSpawnError(executable, info.errCode, info.errnoValue);
 }
 
-ProcessReturnCode Subprocess::poll() {
+ProcessReturnCode Subprocess::poll(struct rusage* ru) {
   returnCode_.enforce(ProcessReturnCode::RUNNING);
   DCHECK_GT(pid_, 0);
   int status;
-  pid_t found = ::waitpid(pid_, &status, WNOHANG);
+  pid_t found = ::wait4(pid_, &status, WNOHANG, ru);
   // The spec guarantees that EINTR does not occur with WNOHANG, so the only
   // two remaining errors are ECHILD (other code reaped the child?), or
   // EINVAL (cosmic rays?), both of which merit an abort:

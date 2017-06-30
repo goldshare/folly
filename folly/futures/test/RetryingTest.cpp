@@ -75,6 +75,27 @@ TEST(RetryingTest, basic) {
   EXPECT_EQ(2, r.value());
 }
 
+TEST(RetryingTest, future_factory_throws) {
+  struct ReturnedException : exception {};
+  struct ThrownException : exception {};
+  auto result = futures::retrying(
+                    [](size_t n, const exception_wrapper&) { return n < 2; },
+                    [](size_t n) {
+                      switch (n) {
+                        case 0:
+                          return makeFuture<size_t>(
+                              make_exception_wrapper<ReturnedException>());
+                        case 1:
+                          throw ThrownException();
+                        default:
+                          return makeFuture(n);
+                      }
+                    })
+                    .wait()
+                    .getTry();
+  EXPECT_THROW(result.throwIfFailed(), ThrownException);
+}
+
 TEST(RetryingTest, policy_future) {
   atomic<size_t> sleeps {0};
   auto r = futures::retrying(
@@ -146,12 +167,14 @@ TEST(RetryingTest, large_retries) {
   rlimit newMemLimit;
   newMemLimit.rlim_cur = std::min(1UL << 30, oldMemLimit.rlim_max);
   newMemLimit.rlim_max = oldMemLimit.rlim_max;
-  PCHECK(setrlimit(RLIMIT_AS, &newMemLimit) == 0);
+  if (!folly::kIsSanitizeAddress) { // ASAN reserves outside of the rlimit
+    PCHECK(setrlimit(RLIMIT_AS, &newMemLimit) == 0);
+  }
   SCOPE_EXIT {
     PCHECK(setrlimit(RLIMIT_AS, &oldMemLimit) == 0);
   };
 
-  TestExecutor executor;
+  TestExecutor executor(4);
   // size of implicit promise is at least the size of the return.
   using LargeReturn = array<uint64_t, 16000>;
   auto func = [&executor](size_t retryNum) -> Future<LargeReturn> {
@@ -171,6 +194,8 @@ TEST(RetryingTest, large_retries) {
         },
         func));
   }
+
+  // 40 * 10,000 * 16,000B > 1GB; we should avoid OOM
 
   for (auto& f : futures) {
     f.wait();

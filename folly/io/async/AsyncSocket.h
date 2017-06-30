@@ -68,6 +68,10 @@ namespace folly {
 #define SO_NO_TRANSPARENT_TLS 200
 #endif
 
+#if defined __linux__ && !defined SO_NO_TSOCKS
+#define SO_NO_TSOCKS 201
+#endif
+
 #ifdef _MSC_VER
 // We do a dynamic_cast on this, in
 // AsyncTransportWrapper::getUnderlyingTransport so be safe and
@@ -320,7 +324,7 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
    * This prevents callers from deleting a AsyncSocket while it is invoking a
    * callback.
    */
-  virtual void destroy() override;
+  void destroy() override;
 
   /**
    * Get the EventBase used by this socket.
@@ -522,6 +526,7 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
   void shutdownWriteNow() override;
 
   bool readable() const override;
+  bool writable() const override;
   bool isPending() const override;
   virtual bool hangup() const;
   bool good() const override;
@@ -760,6 +765,10 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
     noTransparentTls_ = true;
   }
 
+  void disableTSocks() {
+    noTSocks_ = true;
+  }
+
   enum class StateEnum : uint8_t {
     UNINIT,
     CONNECTING,
@@ -776,6 +785,13 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
   void setEvbChangedCallback(std::unique_ptr<EvbChangeCallback> cb) {
     evbChangeCb_ = std::move(cb);
   }
+
+  /**
+   * Attempt to cache the current local and peer addresses (if not already
+   * cached) so that they are available from getPeerAddress() and
+   * getLocalAddress() even after the socket is closed.
+   */
+  void cacheAddresses();
 
   /**
    * writeReturn is the total number of bytes written, or WRITE_ERROR on error.
@@ -885,7 +901,7 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
    * destroy() instead.  (See the documentation in DelayedDestruction.h for
    * more details.)
    */
-  ~AsyncSocket();
+  ~AsyncSocket() override;
 
   friend std::ostream& operator << (std::ostream& os, const StateEnum& state);
 
@@ -918,7 +934,7 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
       : AsyncTimeout(eventBase)
       , socket_(socket) {}
 
-    virtual void timeoutExpired() noexcept {
+    void timeoutExpired() noexcept override {
       socket_->timeoutExpired();
     }
 
@@ -935,7 +951,7 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
       : EventHandler(eventBase, fd)
       , socket_(socket) {}
 
-    virtual void handlerReady(uint16_t events) noexcept {
+    void handlerReady(uint16_t events) noexcept override {
       socket_->ioReady(events);
     }
 
@@ -1114,6 +1130,9 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
 
   std::string withAddr(const std::string& s);
 
+  void cacheLocalAddress() const;
+  void cachePeerAddress() const;
+
   StateEnum state_;                      ///< StateEnum describing current state
   uint8_t shutdownFlags_;                ///< Shutdown state (ShutdownFlags)
   uint16_t eventFlags_;                  ///< EventBase::HandlerFlags settings
@@ -1156,6 +1175,7 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
   bool tfoAttempted_{false};
   bool tfoFinished_{false};
   bool noTransparentTls_{false};
+  bool noTSocks_{false};
   // Whether to track EOR or not.
   bool trackEor_{false};
 

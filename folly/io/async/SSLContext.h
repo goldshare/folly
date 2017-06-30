@@ -31,7 +31,7 @@
 #endif
 
 #include <folly/Range.h>
-#include <folly/io/async/ssl/OpenSSLPtrTypes.h>
+#include <folly/ssl/OpenSSLPtrTypes.h>
 #include <folly/io/async/ssl/OpenSSLUtils.h>
 #include <folly/portability/OpenSSL.h>
 
@@ -421,11 +421,7 @@ class SSLContext {
     return ctx_;
   }
 
-  enum SSLLockType {
-    LOCK_MUTEX,
-    LOCK_SPINLOCK,
-    LOCK_NONE
-  };
+  enum SSLLockType { LOCK_MUTEX, LOCK_SPINLOCK, LOCK_SHAREDMUTEX, LOCK_NONE };
 
   /**
    * Set preferences for how to treat locks in OpenSSL.  This must be
@@ -448,6 +444,13 @@ class SSLContext {
    * setSSLLockTypes({{CRYPTO_LOCK_SSL_SESSION, SSLContext::LOCK_NONE}})
    */
   static void setSSLLockTypes(std::map<int, SSLLockType> lockTypes);
+
+  /**
+   * Set the lock types and initialize OpenSSL in an atomic fashion.  This
+   * aborts if the library has already been initialized.
+   */
+  static void setSSLLockTypesAndInitOpenSSL(
+      std::map<int, SSLLockType> lockTypes);
 
   /**
    * Determine if the SSL lock with the specified id (i.e.
@@ -594,6 +597,7 @@ class SSLContext {
   // Functions are called when locked by the calling function.
   static void initializeOpenSSLLocked();
   static void cleanupOpenSSLLocked();
+  static void setSSLLockTypesLocked(std::map<int, SSLLockType> inLockTypes);
 };
 
 typedef std::shared_ptr<SSLContext> SSLContextPtr;

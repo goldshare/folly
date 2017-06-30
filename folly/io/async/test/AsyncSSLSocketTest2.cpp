@@ -205,6 +205,27 @@ TEST(AsyncSSLSocketTest2, SSLContextLocks) {
 #endif
 }
 
+TEST(AsyncSSLSocketTest2, SSLContextLocksSetAfterInitIgnored) {
+  SSLContext::initializeOpenSSL();
+  SSLContext::setSSLLockTypes({});
+#ifdef CRYPTO_LOCK_EVP_PKEY
+  EXPECT_TRUE(SSLContext::isSSLLockDisabled(CRYPTO_LOCK_EVP_PKEY));
+#endif
+}
+
+TEST(AsyncSSLSocketTest2, SSLContextSetLocksAndInitialize) {
+  SSLContext::cleanupOpenSSL();
+  SSLContext::setSSLLockTypesAndInitOpenSSL({});
+  EXPECT_DEATH(
+      SSLContext::setSSLLockTypesAndInitOpenSSL({}),
+      "OpenSSL is already initialized");
+
+  SSLContext::cleanupOpenSSL();
+  SSLContext::initializeOpenSSL();
+  EXPECT_DEATH(
+      SSLContext::setSSLLockTypesAndInitOpenSSL({}),
+      "OpenSSL is already initialized");
+}
 }  // folly
 
 int main(int argc, char *argv[]) {

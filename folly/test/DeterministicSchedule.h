@@ -16,17 +16,10 @@
 
 #pragma once
 
-// This needs to be above semaphore.h due to the windows
-// libevent implementation needing mode_t to be defined,
-// but defining it differently than our portability
-// headers do.
-#include <folly/portability/SysTypes.h>
-
 #include <assert.h>
 #include <boost/noncopyable.hpp>
 #include <errno.h>
 #include <glog/logging.h>
-#include <semaphore.h>
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -35,9 +28,10 @@
 #include <vector>
 
 #include <folly/ScopeGuard.h>
+#include <folly/concurrency/CacheLocality.h>
 #include <folly/detail/AtomicUtils.h>
-#include <folly/detail/CacheLocality.h>
 #include <folly/detail/Futex.h>
+#include <folly/portability/Semaphore.h>
 
 namespace folly {
 namespace test {
@@ -505,8 +499,9 @@ FutexResult Futex<test::DeterministicAtomic>::futexWaitImpl(
     std::chrono::time_point<std::chrono::system_clock>* absSystemTime,
     std::chrono::time_point<std::chrono::steady_clock>* absSteadyTime,
     uint32_t waitMask);
+}
 
 template <>
 Getcpu::Func AccessSpreader<test::DeterministicAtomic>::pickGetcpuFunc();
-}
+
 } // namespace folly::detail

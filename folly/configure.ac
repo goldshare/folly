@@ -28,13 +28,6 @@ AM_INIT_AUTOMAKE([foreign dist-bzip2 nostdinc subdir-objects])
 
 AC_CONFIG_MACRO_DIR([m4])
 
-AX_CONFIG_FEATURE_DEFAULT_DISABLED
-AX_CONFIG_FEATURE(
-        [deprecated-assoc],
-        [supports deprecated associative containers (hash_map/hash_set)],
-        [HAVE_DEPRECATED_ASSOC],
-        [Define if you want to support deprecated associative containers])
-
 AC_PROG_INSTALL
 AM_PROG_LIBTOOL
 
@@ -252,21 +245,6 @@ AC_DEFINE_UNQUOTED(
   [Define to "override" if the compiler supports C++11 "override"])
 
 AC_CACHE_CHECK(
-  [for constexpr strlen],
-  [folly_cv_func_constexpr_strlen],
-  [AC_COMPILE_IFELSE(
-    [AC_LANG_SOURCE[
-      #include <cstring>
-      static constexpr int val = strlen("foo");]],
-    [folly_cv_func_constexpr_strlen=yes],
-    [folly_cv_func_constexpr_strlen=no])])
-
-if test "$folly_cv_func_constexpr_strlen" = yes; then
-    AC_DEFINE([HAVE_CONSTEXPR_STRLEN], [1],
-              [Define to 1 if strlen(3) is constexpr.])
-fi
-
-AC_CACHE_CHECK(
   [for libc++],
   [folly_cv_lib_libcpp],
   [AC_COMPILE_IFELSE(
@@ -304,11 +282,16 @@ if test "$folly_cv_lib_libatomic" = no; then
                   [Please install the GNU Atomic library])])
 fi
 
+if test "$build_os" = "linux-gnu"; then
+  AC_HAVE_LIBRARY([dl],[],[AC_MSG_ERROR(
+                  [Folly depends on libdl])])
+fi
+
 AC_CACHE_CHECK(
   [for liblinux-vdso support],
   [folly_cv_lib_liblinux_vdso],
   [AC_RUN_IFELSE(
-    [AC_LANG_PROGRAM[
+    [AC_LANG_SOURCE[
       #include <dlfcn.h>
       int main() {
         void *h = dlopen("linux-vdso.so.1", RTLD_LAZY | RTLD_LOCAL | RTLD_NOLOAD);
@@ -624,8 +607,11 @@ AC_CONFIG_FILES([Makefile
                  test/function_benchmark/Makefile
                  experimental/Makefile
                  experimental/io/test/Makefile
+                 experimental/logging/Makefile
+                 experimental/logging/example/Makefile
                  experimental/symbolizer/Makefile
-                 init/Makefile])
+                 init/Makefile
+                 stats/test/Makefile])
 
 AM_COND_IF([EXCEPTION_TRACER],
            [AC_CONFIG_FILES([experimental/exception_tracer/Makefile])])

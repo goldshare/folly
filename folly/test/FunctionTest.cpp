@@ -313,7 +313,7 @@ TEST(Function, Bind) {
 // NonCopyableLambda
 
 TEST(Function, NonCopyableLambda) {
-  auto unique_ptr_int = folly::make_unique<int>(900);
+  auto unique_ptr_int = std::make_unique<int>(900);
   EXPECT_EQ(900, *unique_ptr_int);
 
   struct {
@@ -322,7 +322,10 @@ TEST(Function, NonCopyableLambda) {
   (void)fooData; // suppress gcc warning about fooData not being used
 
   auto functor = std::bind(
-      [fooData](std::unique_ptr<int>& up) mutable { return ++*up; },
+      [fooData](std::unique_ptr<int>& up) mutable {
+        (void)fooData;
+        return ++*up;
+      },
       std::move(unique_ptr_int));
 
   EXPECT_EQ(901, functor());

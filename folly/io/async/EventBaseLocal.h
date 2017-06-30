@@ -31,7 +31,7 @@ namespace detail {
 class EventBaseLocalBase : public EventBaseLocalBaseBase, boost::noncopyable {
  public:
   EventBaseLocalBase() {}
-  virtual ~EventBaseLocalBase();
+  ~EventBaseLocalBase() override;
   void erase(EventBase& evb);
   void onEventBaseDestruction(EventBase& evb) override;
 
@@ -63,7 +63,8 @@ class EventBaseLocalBase : public EventBaseLocalBaseBase, boost::noncopyable {
  *   Foo& foo = myFoo.getOrCreateFn(evb, [] () { return new Foo(3, 4); })
  *
  * The objects will be deleted when the EventBaseLocal or the EventBase is
- * destructed (whichever comes first).  All methods are thread-safe.
+ * destructed (whichever comes first). All methods must be called from the
+ * EventBase thread.
  *
  * The user is responsible for throwing away invalid references/ptrs returned
  * by the get() method after set/erase is called.  If shared ownership is

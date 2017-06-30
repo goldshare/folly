@@ -117,6 +117,7 @@
 #include <folly/Range.h>
 #include <folly/gen/String.h>
 #include <folly/io/IOBufQueue.h>
+#include <folly/portability/SysResource.h>
 
 namespace folly {
 
@@ -208,7 +209,10 @@ class ProcessReturnCode {
 /**
  * Base exception thrown by the Subprocess methods.
  */
-class SubprocessError : public std::exception {};
+class SubprocessError : public std::runtime_error {
+ public:
+  using std::runtime_error::runtime_error;
+};
 
 /**
  * Exception thrown by *Checked methods of Subprocess.
@@ -216,12 +220,10 @@ class SubprocessError : public std::exception {};
 class CalledProcessError : public SubprocessError {
  public:
   explicit CalledProcessError(ProcessReturnCode rc);
-  ~CalledProcessError() throw() = default;
-  const char* what() const throw() override { return what_.c_str(); }
+  ~CalledProcessError() throw() override = default;
   ProcessReturnCode returnCode() const { return returnCode_; }
  private:
   ProcessReturnCode returnCode_;
-  std::string what_;
 };
 
 /**
@@ -230,13 +232,11 @@ class CalledProcessError : public SubprocessError {
 class SubprocessSpawnError : public SubprocessError {
  public:
   SubprocessSpawnError(const char* executable, int errCode, int errnoValue);
-  ~SubprocessSpawnError() throw() = default;
-  const char* what() const throw() override { return what_.c_str(); }
+  ~SubprocessSpawnError() throw() override = default;
   int errnoValue() const { return errnoValue_; }
 
  private:
   int errnoValue_;
-  std::string what_;
 };
 
 /**
@@ -509,7 +509,7 @@ class Subprocess {
    * e.g. if you wait for the underlying process without going through this
    * Subprocess instance.
    */
-  ProcessReturnCode poll();
+  ProcessReturnCode poll(struct rusage* ru = nullptr);
 
   /**
    * Poll the child's status.  If the process is still running, return false.

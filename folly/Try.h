@@ -93,8 +93,7 @@ class Try {
    * @param e The exception_wrapper
    */
   explicit Try(exception_wrapper e)
-    : contains_(Contains::EXCEPTION),
-      e_(folly::make_unique<exception_wrapper>(std::move(e))) {}
+      : contains_(Contains::EXCEPTION), e_(std::move(e)) {}
 
   /*
    * DEPRECATED
@@ -107,10 +106,10 @@ class Try {
     : contains_(Contains::EXCEPTION) {
     try {
       std::rethrow_exception(ep);
-    } catch (const std::exception& e) {
-      e_ = folly::make_unique<exception_wrapper>(std::current_exception(), e);
+    } catch (std::exception& e) {
+      e_ = exception_wrapper(std::current_exception(), e);
     } catch (...) {
-      e_ = folly::make_unique<exception_wrapper>(std::current_exception());
+      e_ = exception_wrapper(std::current_exception());
     }
   }
 
@@ -195,21 +194,46 @@ class Try {
    */
   template <class Ex>
   bool hasException() const {
-    return hasException() && e_->is_compatible_with<Ex>();
+    return hasException() && e_.is_compatible_with<Ex>();
   }
 
   exception_wrapper& exception() {
     if (UNLIKELY(!hasException())) {
       throw TryException("exception(): Try does not contain an exception");
     }
-    return *e_;
+    return e_;
   }
 
   const exception_wrapper& exception() const {
     if (UNLIKELY(!hasException())) {
       throw TryException("exception(): Try does not contain an exception");
     }
-    return *e_;
+    return e_;
+  }
+
+  /*
+   * @returns a pointer to the `std::exception` held by `*this`, if one is held;
+   *          otherwise, returns `nullptr`.
+   */
+  std::exception* tryGetExceptionObject() {
+    return hasException() ? e_.get_exception() : nullptr;
+  }
+  std::exception const* tryGetExceptionObject() const {
+    return hasException() ? e_.get_exception() : nullptr;
+  }
+
+  /*
+   * @returns a pointer to the `Ex` held by `*this`, if it holds an object whose
+   *          type `From` permits `std::is_convertible<From*, Ex*>`; otherwise,
+   *          returns `nullptr`.
+   */
+  template <class E>
+  E* tryGetExceptionObject() {
+    return hasException() ? e_.get_exception<E>() : nullptr;
+  }
+  template <class E>
+  E const* tryGetExceptionObject() const {
+    return hasException() ? e_.get_exception<E>() : nullptr;
   }
 
   /*
@@ -220,11 +244,41 @@ class Try {
    * @returns True if the Try held an Ex and func was executed, false otherwise
    */
   template <class Ex, class F>
+  bool withException(F func) {
+    if (!hasException()) {
+      return false;
+    }
+    return e_.with_exception<Ex>(std::move(func));
+  }
+  template <class Ex, class F>
   bool withException(F func) const {
     if (!hasException()) {
       return false;
     }
-    return e_->with_exception(std::move(func));
+    return e_.with_exception<Ex>(std::move(func));
+  }
+
+  /*
+   * If the Try contains an exception and it is of type compatible with Ex as
+   * deduced from the first parameter of func, execute func(Ex)
+   *
+   * @param func a function that takes a single parameter of type const Ex&
+   *
+   * @returns True if the Try held an Ex and func was executed, false otherwise
+   */
+  template <class F>
+  bool withException(F func) {
+    if (!hasException()) {
+      return false;
+    }
+    return e_.with_exception(std::move(func));
+  }
+  template <class F>
+  bool withException(F func) const {
+    if (!hasException()) {
+      return false;
+    }
+    return e_.with_exception(std::move(func));
   }
 
   template <bool isTry, typename R>
@@ -241,7 +295,7 @@ class Try {
   Contains contains_;
   union {
     T value_;
-    std::unique_ptr<exception_wrapper> e_;
+    exception_wrapper e_;
   };
 };
 
@@ -265,9 +319,7 @@ class Try<void> {
    *
    * @param e The exception_wrapper
    */
-  explicit Try(exception_wrapper e)
-    : hasValue_(false),
-      e_(folly::make_unique<exception_wrapper>(std::move(e))) {}
+  explicit Try(exception_wrapper e) : hasValue_(false), e_(std::move(e)) {}
 
   /*
    * DEPRECATED
@@ -280,18 +332,16 @@ class Try<void> {
     try {
       std::rethrow_exception(ep);
     } catch (const std::exception& e) {
-      e_ = folly::make_unique<exception_wrapper>(std::current_exception(), e);
+      e_ = exception_wrapper(std::current_exception(), e);
     } catch (...) {
-      e_ = folly::make_unique<exception_wrapper>(std::current_exception());
+      e_ = exception_wrapper(std::current_exception());
     }
   }
 
   // Copy assigner
   Try& operator=(const Try<void>& t) {
     hasValue_ = t.hasValue_;
-    if (t.e_) {
-      e_ = folly::make_unique<exception_wrapper>(*t.e_);
-    }
+    e_ = t.e_;
     return *this;
   }
   // Copy constructor
@@ -315,7 +365,7 @@ class Try<void> {
   // @returns True if the Try contains an exception of type Ex, false otherwise
   template <class Ex>
   bool hasException() const {
-    return hasException() && e_->is_compatible_with<Ex>();
+    return hasException() && e_.is_compatible_with<Ex>();
   }
 
   /*
@@ -327,14 +377,39 @@ class Try<void> {
     if (UNLIKELY(!hasException())) {
       throw TryException("exception(): Try does not contain an exception");
     }
-    return *e_;
+    return e_;
   }
 
   const exception_wrapper& exception() const {
     if (UNLIKELY(!hasException())) {
       throw TryException("exception(): Try does not contain an exception");
     }
-    return *e_;
+    return e_;
+  }
+
+  /*
+   * @returns a pointer to the `std::exception` held by `*this`, if one is held;
+   *          otherwise, returns `nullptr`.
+   */
+  std::exception* tryGetExceptionObject() {
+    return hasException() ? e_.get_exception() : nullptr;
+  }
+  std::exception const* tryGetExceptionObject() const {
+    return hasException() ? e_.get_exception() : nullptr;
+  }
+
+  /*
+   * @returns a pointer to the `Ex` held by `*this`, if it holds an object whose
+   *          type `From` permits `std::is_convertible<From*, Ex*>`; otherwise,
+   *          returns `nullptr`.
+   */
+  template <class E>
+  E* tryGetExceptionObject() {
+    return hasException() ? e_.get_exception<E>() : nullptr;
+  }
+  template <class E>
+  E const* tryGetExceptionObject() const {
+    return hasException() ? e_.get_exception<E>() : nullptr;
   }
 
   /*
@@ -345,11 +420,41 @@ class Try<void> {
    * @returns True if the Try held an Ex and func was executed, false otherwise
    */
   template <class Ex, class F>
+  bool withException(F func) {
+    if (!hasException()) {
+      return false;
+    }
+    return e_.with_exception<Ex>(std::move(func));
+  }
+  template <class Ex, class F>
   bool withException(F func) const {
     if (!hasException()) {
       return false;
     }
-    return e_->with_exception(std::move(func));
+    return e_.with_exception<Ex>(std::move(func));
+  }
+
+  /*
+   * If the Try contains an exception and it is of type compatible with Ex as
+   * deduced from the first parameter of func, execute func(Ex)
+   *
+   * @param func a function that takes a single parameter of type const Ex&
+   *
+   * @returns True if the Try held an Ex and func was executed, false otherwise
+   */
+  template <class F>
+  bool withException(F func) {
+    if (!hasException()) {
+      return false;
+    }
+    return e_.with_exception(std::move(func));
+  }
+  template <class F>
+  bool withException(F func) const {
+    if (!hasException()) {
+      return false;
+    }
+    return e_.with_exception(std::move(func));
   }
 
   template <bool, typename R>
@@ -359,7 +464,7 @@ class Try<void> {
 
  private:
   bool hasValue_;
-  std::unique_ptr<exception_wrapper> e_{nullptr};
+  exception_wrapper e_;
 };
 
 /*

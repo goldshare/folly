@@ -47,37 +47,37 @@
 // OPENSSL_VERSION_NUMBER to maintain compatibility. The following variables are
 // intended to be specific to OpenSSL.
 #if !defined(OPENSSL_IS_BORINGSSL)
-# define FOLLY_OPENSSL_IS_100                \
+#define FOLLY_OPENSSL_IS_100                \
   (OPENSSL_VERSION_NUMBER >= 0x10000003L && \
    OPENSSL_VERSION_NUMBER < 0x1000105fL)
-# define FOLLY_OPENSSL_IS_101                \
+#define FOLLY_OPENSSL_IS_101                \
   (OPENSSL_VERSION_NUMBER >= 0x1000105fL && \
    OPENSSL_VERSION_NUMBER < 0x1000200fL)
-# define FOLLY_OPENSSL_IS_102                \
+#define FOLLY_OPENSSL_IS_102                \
   (OPENSSL_VERSION_NUMBER >= 0x1000200fL && \
    OPENSSL_VERSION_NUMBER < 0x10100000L)
-# define FOLLY_OPENSSL_IS_110 (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+#define FOLLY_OPENSSL_IS_110 (OPENSSL_VERSION_NUMBER >= 0x10100000L)
 #endif
 
-#if !OPENSSL_IS_BORINGSSL && !FOLLY_OPENSSL_IS_100 && !FOLLY_OPENSSL_IS_101 \
-    && !FOLLY_OPENSSL_IS_102 && !FOLLY_OPENSSL_IS_110
-# warning Compiling with unsupported OpenSSL version
+#if !OPENSSL_IS_BORINGSSL && !FOLLY_OPENSSL_IS_100 && !FOLLY_OPENSSL_IS_101 && \
+    !FOLLY_OPENSSL_IS_102 && !FOLLY_OPENSSL_IS_110
+#warning Compiling with unsupported OpenSSL version
 #endif
 
 // BoringSSL and OpenSSL 0.9.8f later with TLS extension support SNI.
-#if OPENSSL_IS_BORINGSSL ||          \
+#if OPENSSL_IS_BORINGSSL || \
     (OPENSSL_VERSION_NUMBER >= 0x00908070L && !defined(OPENSSL_NO_TLSEXT))
-# define FOLLY_OPENSSL_HAS_SNI 1
+#define FOLLY_OPENSSL_HAS_SNI 1
 #else
-# define FOLLY_OPENSSL_HAS_SNI 0
+#define FOLLY_OPENSSL_HAS_SNI 0
 #endif
 
 // BoringSSL and OpenSSL 1.0.2 later with TLS extension support ALPN.
-#if OPENSSL_IS_BORINGSSL ||          \
+#if OPENSSL_IS_BORINGSSL || \
     (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined(OPENSSL_NO_TLSEXT))
-# define FOLLY_OPENSSL_HAS_ALPN 1
+#define FOLLY_OPENSSL_HAS_ALPN 1
 #else
-# define FOLLY_OPENSSL_HAS_ALPN 0
+#define FOLLY_OPENSSL_HAS_ALPN 0
 #endif
 
 // This attempts to "unify" the OpenSSL libcrypto/libssl APIs between
@@ -108,6 +108,14 @@ int X509_get_signature_nid(X509* cert);
 int SSL_CTX_up_ref(SSL_CTX* session);
 int SSL_SESSION_up_ref(SSL_SESSION* session);
 int X509_up_ref(X509* x);
+int EVP_PKEY_up_ref(EVP_PKEY* evp);
+void RSA_get0_key(
+    const RSA* r,
+    const BIGNUM** n,
+    const BIGNUM** e,
+    const BIGNUM** d);
+RSA* EVP_PKEY_get0_RSA(EVP_PKEY* pkey);
+EC_KEY* EVP_PKEY_get0_EC_KEY(EVP_PKEY* pkey);
 #endif
 
 #if !FOLLY_OPENSSL_IS_110
@@ -127,8 +135,18 @@ void HMAC_CTX_free(HMAC_CTX* ctx);
 unsigned long SSL_SESSION_get_ticket_lifetime_hint(const SSL_SESSION* s);
 int SSL_SESSION_has_ticket(const SSL_SESSION* s);
 int DH_set0_pqg(DH* dh, BIGNUM* p, BIGNUM* q, BIGNUM* g);
+
+X509* X509_STORE_CTX_get0_cert(X509_STORE_CTX* ctx);
+STACK_OF(X509) * X509_STORE_CTX_get0_chain(X509_STORE_CTX* ctx);
+STACK_OF(X509) * X509_STORE_CTX_get0_untrusted(X509_STORE_CTX* ctx);
+bool RSA_set0_key(RSA* r, BIGNUM* n, BIGNUM* e, BIGNUM* d);
 #endif
 
+#if FOLLY_OPENSSL_IS_110
+// Note: this was a type and has been fixed upstream, so the next 1.1.0
+// minor version upgrade will need to remove this
+#define OPENSSL_lh_new OPENSSL_LH_new
+#endif
 }
 }
 }

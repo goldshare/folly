@@ -62,6 +62,40 @@ int SSL_SESSION_up_ref(SSL_SESSION* session) {
 int X509_up_ref(X509* x) {
   return CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509);
 }
+
+int EVP_PKEY_up_ref(EVP_PKEY* evp) {
+  return CRYPTO_add(&evp->references, 1, CRYPTO_LOCK_EVP_PKEY);
+}
+
+void RSA_get0_key(
+    const RSA* r,
+    const BIGNUM** n,
+    const BIGNUM** e,
+    const BIGNUM** d) {
+  if (n != nullptr) {
+    *n = r->n;
+  }
+  if (e != nullptr) {
+    *e = r->e;
+  }
+  if (d != nullptr) {
+    *d = r->d;
+  }
+}
+
+RSA* EVP_PKEY_get0_RSA(EVP_PKEY* pkey) {
+  if (pkey->type != EVP_PKEY_RSA) {
+    return nullptr;
+  }
+  return pkey->pkey.rsa;
+}
+
+EC_KEY* EVP_PKEY_get0_EC_KEY(EVP_PKEY* pkey) {
+  if (pkey->type != EVP_PKEY_EC) {
+    return nullptr;
+  }
+  return pkey->pkey.ec;
+}
 #endif
 
 #if !FOLLY_OPENSSL_IS_110
@@ -87,35 +121,6 @@ unsigned char* ASN1_STRING_get0_data(const ASN1_STRING* x) {
   return ASN1_STRING_data((ASN1_STRING*)x);
 }
 
-EVP_MD_CTX* EVP_MD_CTX_new(void) {
-  EVP_MD_CTX* ctx = (EVP_MD_CTX*)OPENSSL_malloc(sizeof(EVP_MD_CTX));
-  if (!ctx) {
-    throw std::runtime_error("Cannot allocate EVP_MD_CTX");
-  }
-  EVP_MD_CTX_init(ctx);
-  return ctx;
-}
-
-void EVP_MD_CTX_free(EVP_MD_CTX* ctx) {
-  EVP_MD_CTX_destroy(ctx);
-}
-
-HMAC_CTX* HMAC_CTX_new() {
-  HMAC_CTX* ctx = (HMAC_CTX*)OPENSSL_malloc(sizeof(HMAC_CTX));
-  if (!ctx) {
-    throw std::runtime_error("Cannot allocate HMAC_CTX");
-  }
-  HMAC_CTX_init(ctx);
-  return ctx;
-}
-
-void HMAC_CTX_free(HMAC_CTX* ctx) {
-  if (ctx) {
-    HMAC_CTX_cleanup(ctx);
-    OPENSSL_free(ctx);
-  }
-}
-
 int SSL_SESSION_has_ticket(const SSL_SESSION* s) {
   return (s->tlsext_ticklen > 0) ? 1 : 0;
 }
@@ -126,8 +131,8 @@ unsigned long SSL_SESSION_get_ticket_lifetime_hint(const SSL_SESSION* s) {
 
 // This is taken from OpenSSL 1.1.0
 int DH_set0_pqg(DH* dh, BIGNUM* p, BIGNUM* q, BIGNUM* g) {
-  /* If the fields p and g in d are NULL, the corresponding input
-   * parameters MUST be non-NULL.  q may remain NULL.
+  /* If the fields p and g in d are nullptr, the corresponding input
+   * parameters MUST not be nullptr.  q may remain nullptr.
    */
   if (dh == nullptr || (dh->p == nullptr && p == nullptr) ||
       (dh->g == nullptr && g == nullptr)) {
@@ -157,8 +162,77 @@ int DH_set0_pqg(DH* dh, BIGNUM* p, BIGNUM* q, BIGNUM* g) {
 
   return 1;
 }
-#endif
 
+X509* X509_STORE_CTX_get0_cert(X509_STORE_CTX* ctx) {
+  return ctx->cert;
+}
+
+STACK_OF(X509) * X509_STORE_CTX_get0_chain(X509_STORE_CTX* ctx) {
+  return X509_STORE_CTX_get_chain(ctx);
+}
+
+STACK_OF(X509) * X509_STORE_CTX_get0_untrusted(X509_STORE_CTX* ctx) {
+  return ctx->untrusted;
+}
+
+EVP_MD_CTX* EVP_MD_CTX_new() {
+  EVP_MD_CTX* ctx = (EVP_MD_CTX*)OPENSSL_malloc(sizeof(EVP_MD_CTX));
+  if (!ctx) {
+    throw std::runtime_error("Cannot allocate EVP_MD_CTX");
+  }
+  EVP_MD_CTX_init(ctx);
+  return ctx;
+}
+
+void EVP_MD_CTX_free(EVP_MD_CTX* ctx) {
+  if (ctx) {
+    EVP_MD_CTX_cleanup(ctx);
+    OPENSSL_free(ctx);
+  }
+}
+
+HMAC_CTX* HMAC_CTX_new() {
+  HMAC_CTX* ctx = (HMAC_CTX*)OPENSSL_malloc(sizeof(HMAC_CTX));
+  if (!ctx) {
+    throw std::runtime_error("Cannot allocate HMAC_CTX");
+  }
+  HMAC_CTX_init(ctx);
+  return ctx;
+}
+
+void HMAC_CTX_free(HMAC_CTX* ctx) {
+  if (ctx) {
+    HMAC_CTX_cleanup(ctx);
+    OPENSSL_free(ctx);
+  }
+}
+
+bool RSA_set0_key(RSA* r, BIGNUM* n, BIGNUM* e, BIGNUM* d) {
+  // Based off of https://wiki.openssl.org/index.php/OpenSSL_1.1.0_Changes
+  /**
+   * If the fields n and e in r are NULL, the corresponding input parameters
+   * MUST be non-NULL for n and e. d may be left NULL (in case only the public
+   * key is used).
+   */
+  if ((r->n == nullptr && n == nullptr) || (r->e == nullptr && e == nullptr)) {
+    return false;
+  }
+  if (n != nullptr) {
+    BN_free(r->n);
+    r->n = n;
+  }
+  if (e != nullptr) {
+    BN_free(r->e);
+    r->e = e;
+  }
+  if (d != nullptr) {
+    BN_free(r->d);
+    r->d = d;
+  }
+  return true;
+}
+
+#endif
 }
 }
 }

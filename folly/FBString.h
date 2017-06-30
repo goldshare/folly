@@ -40,6 +40,7 @@
 
 #else // !_LIBSTDCXX_FBSTRING
 
+#include <folly/CppAttributes.h>
 #include <folly/Portability.h>
 
 // libc++ doesn't provide this header, nor does msvc
@@ -56,13 +57,7 @@
 #include <folly/Hash.h>
 #include <folly/Malloc.h>
 #include <folly/Traits.h>
-
-#if FOLLY_HAVE_DEPRECATED_ASSOC
-#ifdef _GLIBCXX_SYMVER
-#include <ext/hash_set>
-#include <ext/hash_map>
-#endif
-#endif
+#include <folly/portability/BitsFunctexcept.h>
 
 // When used in folly, assertions are not disabled.
 #define FBSTRING_ASSERT(expr) assert(expr)
@@ -79,13 +74,13 @@
 #define FBSTRING_UNLIKELY(x) (x)
 #endif
 
-#pragma GCC diagnostic push
+FOLLY_PUSH_WARNING
 // Ignore shadowing warnings within this file, so includers can use -Wshadow.
-#pragma GCC diagnostic ignored "-Wshadow"
+FOLLY_GCC_DISABLE_WARNING("-Wshadow")
 // GCC 4.9 has a false positive in setSmallSize (probably
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=59124), disable
 // compile-time array bound checking.
-#pragma GCC diagnostic ignored "-Warray-bounds"
+FOLLY_GCC_DISABLE_WARNING("-Warray-bounds")
 
 // FBString cannot use throw when replacing std::string, though it may still
 // use std::__throw_*
@@ -499,7 +494,9 @@ public:
         if (RefCounted::refs(ml_.data_) > 1) {
           return ml_.size_;
         }
-      default: {}
+        break;
+      default:
+        break;
     }
     return ml_.capacity();
   }
@@ -753,10 +750,13 @@ inline void fbstring_core<Char>::initSmall(
     switch ((byteSize + wordWidth - 1) / wordWidth) { // Number of words.
       case 3:
         ml_.capacity_ = reinterpret_cast<const size_t*>(data)[2];
+        FOLLY_FALLTHROUGH;
       case 2:
         ml_.size_ = reinterpret_cast<const size_t*>(data)[1];
+        FOLLY_FALLTHROUGH;
       case 1:
         ml_.data_ = *reinterpret_cast<Char**>(const_cast<Char*>(data));
+        FOLLY_FALLTHROUGH;
       case 0:
         break;
     }
@@ -1147,9 +1147,9 @@ public:
 
 #ifndef _LIBSTDCXX_FBSTRING
   // This is defined for compatibility with std::string
-  /* implicit */ basic_fbstring(const std::string& str)
-      : store_(str.data(), str.size()) {
-  }
+  template <typename A2>
+  /* implicit */ basic_fbstring(const std::basic_string<E, T, A2>& str)
+      : store_(str.data(), str.size()) {}
 #endif
 
   basic_fbstring(const basic_fbstring& str,
@@ -1211,13 +1211,14 @@ public:
 
 #ifndef _LIBSTDCXX_FBSTRING
   // Compatibility with std::string
-  basic_fbstring & operator=(const std::string & rhs) {
+  template <typename A2>
+  basic_fbstring& operator=(const std::basic_string<E, T, A2>& rhs) {
     return assign(rhs.data(), rhs.size());
   }
 
   // Compatibility with std::string
-  std::string toStdString() const {
-    return std::string(data(), size());
+  std::basic_string<E, T, A> toStdString() const {
+    return std::basic_string<E, T, A>(data(), size());
   }
 #else
   // A lot of code in fbcode still uses this method, so keep it here for now.
@@ -1230,7 +1231,24 @@ public:
     return assign(s);
   }
 
-  basic_fbstring& operator=(value_type c);
+  // This actually goes directly against the C++ spec, but the
+  // value_type overload is dangerous, so we're explicitly deleting
+  // any overloads of operator= that could implicitly convert to
+  // value_type.
+  // Note that we do need to explicitly specify the template types because
+  // otherwise MSVC 2017 will aggressively pre-resolve value_type to
+  // traits_type::char_type, which won't compare as equal when determining
+  // which overload the implementation is referring to.
+  // Also note that MSVC 2015 Update 3 requires us to explicitly specify the
+  // namespace in-which to search for basic_fbstring, otherwise it tries to
+  // look for basic_fbstring::basic_fbstring, which is just plain wrong.
+  template <typename TP>
+  typename std::enable_if<
+      std::is_same<
+          typename std::decay<TP>::type,
+          typename folly::basic_fbstring<E, T, A, Storage>::value_type>::value,
+      basic_fbstring<E, T, A, Storage>&>::type
+  operator=(TP c);
 
   basic_fbstring& operator=(std::initializer_list<value_type> il) {
     return assign(il.begin(), il.end());
@@ -1860,8 +1878,13 @@ inline basic_fbstring<E, T, A, S>& basic_fbstring<E, T, A, S>::operator=(
 }
 
 template <typename E, class T, class A, class S>
-inline basic_fbstring<E, T, A, S>& basic_fbstring<E, T, A, S>::operator=(
-    const value_type c) {
+template <typename TP>
+inline typename std::enable_if<
+    std::is_same<
+        typename std::decay<TP>::type,
+        typename basic_fbstring<E, T, A, S>::value_type>::value,
+    basic_fbstring<E, T, A, S>&>::type
+basic_fbstring<E, T, A, S>::operator=(TP c) {
   Invariant checker(*this);
 
   if (empty()) {
@@ -2851,22 +2874,12 @@ FOLLY_FBSTRING_HASH
 
 }  // namespace std
 
-#if FOLLY_HAVE_DEPRECATED_ASSOC
-#if defined(_GLIBCXX_SYMVER) && !defined(__BIONIC__)
-namespace __gnu_cxx {
-
-FOLLY_FBSTRING_HASH
-
-}  // namespace __gnu_cxx
-#endif // _GLIBCXX_SYMVER && !__BIONIC__
-#endif // FOLLY_HAVE_DEPRECATED_ASSOC
-
 #undef FOLLY_FBSTRING_HASH
 #undef FOLLY_FBSTRING_HASH1
 
 #endif // _LIBSTDCXX_FBSTRING
 
-#pragma GCC diagnostic pop
+FOLLY_POP_WARNING
 
 #undef FBSTRING_DISABLE_SSO
 #undef FBSTRING_SANITIZE_ADDRESS

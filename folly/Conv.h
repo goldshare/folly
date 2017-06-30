@@ -986,11 +986,12 @@ to(Src value) {
  * toDelim<SomeString>(SomeString str) returns itself.
  */
 template <class Tgt, class Delim, class Src>
-typename std::enable_if<IsSomeString<Tgt>::value &&
-                            std::is_same<Tgt, Src>::value,
-                        Tgt>::type
-toDelim(const Delim& /* delim */, const Src& value) {
-  return value;
+typename std::enable_if<
+    IsSomeString<Tgt>::value &&
+        std::is_same<Tgt, typename std::decay<Src>::type>::value,
+    Tgt>::type
+toDelim(const Delim& /* delim */, Src&& value) {
+  return std::forward<Src>(value);
 }
 
 /**
@@ -1165,7 +1166,7 @@ to(const char* b, const char* e) {
  * Parsing strings to numeric types.
  */
 template <typename Tgt>
-FOLLY_WARN_UNUSED_RESULT inline typename std::enable_if<
+FOLLY_NODISCARD inline typename std::enable_if<
     std::is_arithmetic<Tgt>::value,
     Expected<StringPiece, ConversionCode>>::type
 parseTo(StringPiece src, Tgt& out) {
@@ -1372,7 +1373,7 @@ typename std::enable_if<detail::IsArithToArith<Tgt, Src>::value, Tgt>::type to(
  * }
  ******************************************************************************/
 template <class T>
-FOLLY_WARN_UNUSED_RESULT typename std::enable_if<
+FOLLY_NODISCARD typename std::enable_if<
     std::is_enum<T>::value,
     Expected<StringPiece, ConversionCode>>::type
 parseTo(StringPiece in, T& out) noexcept {
@@ -1382,7 +1383,7 @@ parseTo(StringPiece in, T& out) noexcept {
   return restOrError;
 }
 
-FOLLY_WARN_UNUSED_RESULT
+FOLLY_NODISCARD
 inline Expected<StringPiece, ConversionCode> parseTo(
     StringPiece in,
     StringPiece& out) noexcept {
@@ -1390,7 +1391,7 @@ inline Expected<StringPiece, ConversionCode> parseTo(
   return StringPiece{in.end(), in.end()};
 }
 
-FOLLY_WARN_UNUSED_RESULT
+FOLLY_NODISCARD
 inline Expected<StringPiece, ConversionCode> parseTo(
     StringPiece in,
     std::string& out) {
@@ -1399,7 +1400,7 @@ inline Expected<StringPiece, ConversionCode> parseTo(
   return StringPiece{in.end(), in.end()};
 }
 
-FOLLY_WARN_UNUSED_RESULT
+FOLLY_NODISCARD
 inline Expected<StringPiece, ConversionCode> parseTo(
     StringPiece in,
     fbstring& out) {
@@ -1536,7 +1537,7 @@ tryTo(const Src& value) {
 template <class Tgt, class Src>
 typename std::enable_if<
     std::is_enum<Tgt>::value && !std::is_same<Src, Tgt>::value,
-    Tgt>::type
+    Expected<Tgt, ConversionCode>>::type
 tryTo(const Src& value) {
   using I = typename std::underlying_type<Tgt>::type;
   return tryTo<I>(value).then([](I i) { return static_cast<Tgt>(i); });

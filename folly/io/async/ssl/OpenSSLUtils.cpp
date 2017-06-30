@@ -22,6 +22,7 @@
 
 #include <folly/ScopeGuard.h>
 #include <folly/portability/Sockets.h>
+#include <folly/portability/Unistd.h>
 
 namespace {
 #ifdef OPENSSL_IS_BORINGSSL
@@ -120,7 +121,7 @@ bool OpenSSLUtils::validatePeerCertNames(X509* cert,
     }
   }
 
-  for (size_t i = 0; i < (size_t)sk_GENERAL_NAME_num(altNames); i++) {
+  for (int i = 0; i < sk_GENERAL_NAME_num(altNames); i++) {
     auto name = sk_GENERAL_NAME_value(altNames, i);
     if ((addr4 != nullptr || addr6 != nullptr) && name->type == GEN_IPADD) {
       // Extra const-ness for paranoia
@@ -195,14 +196,20 @@ const std::string& OpenSSLUtils::getCipherName(uint16_t cipherCode) {
 }
 
 void OpenSSLUtils::setSSLInitialCtx(SSL* ssl, SSL_CTX* ctx) {
+  (void)ssl;
+  (void)ctx;
 #if !FOLLY_OPENSSL_IS_110 && !defined(OPENSSL_NO_TLSEXT)
   if (ssl) {
+    if (ctx) {
+      SSL_CTX_up_ref(ctx);
+    }
     ssl->initial_ctx = ctx;
   }
 #endif
 }
 
 SSL_CTX* OpenSSLUtils::getSSLInitialCtx(SSL* ssl) {
+  (void)ssl;
 #if !FOLLY_OPENSSL_IS_110 && !defined(OPENSSL_NO_TLSEXT)
   if (ssl) {
     return ssl->initial_ctx;
@@ -343,11 +350,6 @@ static int boringssl_bio_fd_non_fatal_error(int err) {
 
 #if defined(OPENSSL_WINDOWS)
 
-#include <io.h>
-#pragma warning(push, 3)
-#include <windows.h>
-#pragma warning(pop)
-
 int boringssl_bio_fd_should_retry(int i) {
   if (i == -1) {
     return boringssl_bio_fd_non_fatal_error((int)GetLastError());
@@ -357,7 +359,6 @@ int boringssl_bio_fd_should_retry(int i) {
 
 #else // !OPENSSL_WINDOWS
 
-#include <unistd.h>
 int boringssl_bio_fd_should_retry(int i) {
   if (i == -1) {
     return boringssl_bio_fd_non_fatal_error(errno);

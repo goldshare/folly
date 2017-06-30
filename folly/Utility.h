@@ -131,4 +131,54 @@ template <std::size_t N>
 using make_index_sequence = detail::make_index_sequence<N>;
 
 #endif
-}
+
+/**
+ * A simple function object that passes its argument through unchanged.
+ *
+ * Example:
+ *
+ *   int i = 42;
+ *   int &j = Identity()(i);
+ *   assert(&i == &j);
+ *
+ * Warning: passing a prvalue through Identity turns it into an xvalue,
+ * which can effect whether lifetime extension occurs or not. For instance:
+ *
+ *   auto&& x = std::make_unique<int>(42);
+ *   cout << *x ; // OK, x refers to a valid unique_ptr.
+ *
+ *   auto&& y = Identity()(std::make_unique<int>(42));
+ *   cout << *y ; // ERROR: y did not lifetime-extend the unique_ptr. It
+ *                // is no longer valid
+ */
+struct Identity {
+  using is_transparent = void;
+  template <class T>
+  constexpr T&& operator()(T&& x) const noexcept {
+    return static_cast<T&&>(x);
+  }
+};
+
+namespace moveonly_ { // Protection from unintended ADL.
+
+/**
+ * Disallow copy but not move in derived types. This is essentially
+ * boost::noncopyable (the implementation is almost identical) but it
+ * doesn't delete move constructor and move assignment.
+ */
+class MoveOnly {
+ protected:
+  constexpr MoveOnly() = default;
+  ~MoveOnly() = default;
+
+  MoveOnly(MoveOnly&&) = default;
+  MoveOnly& operator=(MoveOnly&&) = default;
+  MoveOnly(const MoveOnly&) = delete;
+  MoveOnly& operator=(const MoveOnly&) = delete;
+};
+
+} // namespace moveonly_
+
+using MoveOnly = moveonly_::MoveOnly;
+
+} // namespace folly

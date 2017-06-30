@@ -1,18 +1,5 @@
 cmake_minimum_required(VERSION 3.4.0 FATAL_ERROR)
 
-# Unfortunately, CMake doesn't easily provide us a way to merge static
-# libraries, which is what we want to do to generate the main folly library, so
-# we do a bit of a workaround here to inject a property into the generated
-# project files that will only get enabled for the folly target. Ugly, but
-# the alternatives are far, far worse.
-if ("${CMAKE_GENERATOR}" MATCHES "Visual Studio 15( 2017)? Win64")
-  set(CMAKE_GENERATOR_TOOLSET "v141</PlatformToolset></PropertyGroup><ItemDefinitionGroup Condition=\"'$(ProjectName)'=='folly'\"><ProjectReference><LinkLibraryDependencies>true</LinkLibraryDependencies></ProjectReference></ItemDefinitionGroup><PropertyGroup><PlatformToolset>v141")
-elseif ("${CMAKE_GENERATOR}" STREQUAL "Visual Studio 14 2015 Win64")
-  set(CMAKE_GENERATOR_TOOLSET "v140</PlatformToolset></PropertyGroup><ItemDefinitionGroup Condition=\"'$(ProjectName)'=='folly'\"><ProjectReference><LinkLibraryDependencies>true</LinkLibraryDependencies></ProjectReference></ItemDefinitionGroup><PropertyGroup><PlatformToolset>v140")
-else()
-  message(FATAL_ERROR "This build script only supports building Folly on 64-bit Windows with Visual Studio 2015 or Visual Studio 2017.")
-endif()
-
 # includes
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake" ${CMAKE_MODULE_PATH})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -28,6 +15,14 @@ set(PACKAGE_BUGREPORT "https://github.com/facebook/folly/issues")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 project(${PACKAGE_NAME} CXX)
+
+if (MSVC_VERSION EQUAL 1910 OR MSVC_VERSION EQUAL 1911)
+  set(MSVC_IS_2017 ON)
+elseif (MSVC_VERSION EQUAL 1900)
+  set(MSVC_IS_2017 OFF)
+else()
+  message(FATAL_ERROR "This build script only supports building '${MSVC_VERSION}' Folly on 64-bit Windows with Visual Studio 2015 or Visual Studio 2017.")
+endif()
 
 # Check architecture OS
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -84,7 +79,9 @@ REMOVE_MATCHES_FROM_LISTS(files hfiles
   MATCHES
     "/build/"
     "/experimental/exception_tracer/"
+    "/experimental/hazptr/bench/"
     "/experimental/hazptr/example/"
+    "/experimental/logging/example/"
     "/experimental/symbolizer/"
     "/futures/exercises/"
     "/test/"
@@ -111,7 +108,7 @@ list(REMOVE_ITEM hfiles
   ${FOLLY_DIR}/experimental/io/AsyncIO.h
 )
 
-add_library(folly_base STATIC
+add_library(folly_base OBJECT
   ${files} ${hfiles}
   ${CMAKE_CURRENT_BINARY_DIR}/folly/folly-config.h
   ${CMAKE_CURRENT_BINARY_DIR}/folly/build/EscapeTables.cpp
@@ -130,42 +127,56 @@ source_group("folly\\build" FILES
   ${CMAKE_CURRENT_BINARY_DIR}/folly/build/GroupVarintTables.cpp
 )
 
+set(FOLLY_SHINY_DEPENDENCIES
+  Boost::chrono
+  Boost::context
+  Boost::date_time
+  Boost::filesystem
+  Boost::program_options
+  Boost::regex
+  Boost::system
+  OpenSSL::SSL
+  OpenSSL::Crypto
+)
+
+set(FOLLY_LINK_LIBRARIES
+  ${DOUBLE_CONVERSION_LIBRARY}
+  ${LIBEVENT_LIB}
+  ${LIBGFLAGS_LIBRARY}
+  ${LIBGLOG_LIBRARY}
+  Ws2_32.lib
+
+  ${FOLLY_SHINY_DEPENDENCIES}
+)
+
 target_include_directories(folly_base
   PUBLIC
     ${DOUBLE_CONVERSION_INCLUDE_DIR}
     ${LIBGFLAGS_INCLUDE_DIR}
     ${LIBGLOG_INCLUDE_DIR}
     ${LIBEVENT_INCLUDE_DIR}
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
-target_link_libraries(folly_base
-  PUBLIC
-    Boost::chrono
-    Boost::context
-    Boost::date_time
-    Boost::filesystem
-    Boost::program_options
-    Boost::regex
-    Boost::system
-    ${DOUBLE_CONVERSION_LIBRARY}
-    ${LIBEVENT_LIB}
-    ${LIBGFLAGS_LIBRARY}
-    ${LIBGLOG_LIBRARY}
-    OpenSSL::SSL
-    OpenSSL::Crypto
-    Ws2_32.lib
-)
+
+foreach (LIB ${FOLLY_SHINY_DEPENDENCIES})
+  target_include_directories(folly_base PUBLIC $<TARGET_PROPERTY:${LIB},INCLUDE_DIRECTORIES>)
+endforeach()
+
 if (FOLLY_HAVE_PTHREAD)
   target_include_directories(folly_base PUBLIC ${LIBPTHREAD_INCLUDE_DIRS})
-  target_link_libraries(folly_base PUBLIC ${LIBPTHREAD_LIBRARIES})
+  list(APPEND FOLLY_LINK_LIBRARIES ${LIBPTHREAD_LIBRARIES})
 endif()
 
 # Now to generate the fingerprint tables
 add_executable(GenerateFingerprintTables
   ${FOLLY_DIR}/build/GenerateFingerprintTables.cpp
+  $<TARGET_OBJECTS:folly_base>
 )
+target_link_libraries(GenerateFingerprintTables PRIVATE ${FOLLY_LINK_LIBRARIES})
+target_include_directories(GenerateFingerprintTables PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+add_dependencies(GenerateFingerprintTables folly_base)
 apply_folly_compile_options_to_target(GenerateFingerprintTables)
 set_property(TARGET GenerateFingerprintTables PROPERTY FOLDER "Build")
-target_link_libraries(GenerateFingerprintTables PRIVATE folly_base)
 source_group("" FILES ${FOLLY_DIR}/build/GenerateFingerprintTables.cpp)
 
 # Compile the fingerprint tables.
@@ -181,9 +192,12 @@ add_library(folly_fingerprint STATIC
   ${FOLLY_DIR}/Fingerprint.h
   ${FOLLY_DIR}/detail/SlowFingerprint.h
   ${FOLLY_DIR}/detail/FingerprintPolynomial.h
+  $<TARGET_OBJECTS:folly_base>
 )
+target_link_libraries(folly_fingerprint PRIVATE ${FOLLY_LINK_LIBRARIES})
+target_include_directories(folly_fingerprint PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
+add_dependencies(folly_fingerprint folly_base)
 apply_folly_compile_options_to_target(folly_fingerprint)
-target_link_libraries(folly_fingerprint PRIVATE folly_base)
 
 # We want to generate a single library and target for folly, but we needed a
 # two-stage compile for the fingerprint tables, so we create a phony source
@@ -193,13 +207,10 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/folly_dep.cpp
   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/folly_dep.cpp
   DEPENDS folly_base folly_fingerprint
 )
-add_library(folly ${CMAKE_CURRENT_BINARY_DIR}/folly_dep.cpp)
+add_library(folly ${CMAKE_CURRENT_BINARY_DIR}/folly_dep.cpp $<TARGET_OBJECTS:folly_base>)
 apply_folly_compile_options_to_target(folly)
 source_group("" FILES ${CMAKE_CURRENT_BINARY_DIR}/folly_dep.cpp)
 
-# Rather than list the dependencies in two places, we apply them directly on
-# the folly_base target and then copy them over to the folly target.
-get_target_property(FOLLY_LINK_LIBRARIES folly_base INTERFACE_LINK_LIBRARIES)
 target_link_libraries(folly PUBLIC ${FOLLY_LINK_LIBRARIES})
 target_include_directories(folly PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
 
@@ -243,6 +254,9 @@ if (BUILD_TESTS)
     ${FOLLY_DIR}/test/SingletonTestStructs.cpp
     ${FOLLY_DIR}/test/SocketAddressTestHelper.cpp
     ${FOLLY_DIR}/test/SocketAddressTestHelper.h
+    ${FOLLY_DIR}/experimental/logging/test/TestLogHandler.h
+    ${FOLLY_DIR}/futures/test/TestExecutor.cpp
+    ${FOLLY_DIR}/futures/test/TestExecutor.h
     ${FOLLY_DIR}/io/async/test/BlockingSocket.h
     ${FOLLY_DIR}/io/async/test/MockAsyncServerSocket.h
     ${FOLLY_DIR}/io/async/test/MockAsyncSocket.h
@@ -261,6 +275,10 @@ if (BUILD_TESTS)
     ${FOLLY_DIR}/io/async/test/UndelayedDestruction.h
     ${FOLLY_DIR}/io/async/test/Util.h
   )
+  target_compile_definitions(folly_test_support
+    PUBLIC
+      ${LIBGMOCK_DEFINES}
+  )
   target_include_directories(folly_test_support
     PUBLIC
       ${LIBGMOCK_INCLUDE_DIR}
@@ -274,6 +292,8 @@ if (BUILD_TESTS)
   apply_folly_compile_options_to_target(folly_test_support)
 
   folly_define_tests(
+    DIRECTORY concurrency/
+      TEST cache_locality_test SOURCES CacheLocalityTest.cpp
     DIRECTORY experimental/test/
       TEST autotimer_test SOURCES AutoTimerTest.cpp
       TEST bits_test_2 SOURCES BitsTest.cpp
@@ -299,46 +319,71 @@ if (BUILD_TESTS)
       #TEST async_io_test SOURCES AsyncIOTest.cpp
       TEST fs_util_test SOURCES FsUtilTest.cpp
 
+    DIRECTORY experimental/logging/test/
+      TEST async_file_writer_test SOURCES AsyncFileWriterTest.cpp
+      TEST glog_formatter_test SOURCES GlogFormatterTest.cpp
+      TEST immediate_file_writer_test SOURCES ImmediateFileWriterTest.cpp
+      TEST log_category_test SOURCES LogCategoryTest.cpp
+      TEST logger_db_test SOURCES LoggerDBTest.cpp
+      TEST logger_test SOURCES LoggerTest.cpp
+      TEST log_level_test SOURCES LogLevelTest.cpp
+      TEST log_message_test SOURCES LogMessageTest.cpp
+      TEST log_name_test SOURCES LogNameTest.cpp
+      TEST log_stream_test SOURCES LogStreamTest.cpp
+      TEST printf_test SOURCES PrintfTest.cpp
+      TEST rate_limiter_test SOURCES RateLimiterTest.cpp
+      TEST standard_log_handler_test SOURCES StandardLogHandlerTest.cpp
+      TEST xlog_test
+        HEADERS
+          XlogHeader1.h
+          XlogHeader2.h
+        SOURCES
+          XlogFile1.cpp
+          XlogFile2.cpp
+          XlogTest.cpp
+
     DIRECTORY fibers/test/
       TEST fibers_test SOURCES FibersTest.cpp
 
     DIRECTORY futures/test/
-      TEST futures-test
+      TEST barrier_test SOURCES BarrierTest.cpp
+      TEST collect_test SOURCES CollectTest.cpp
+      TEST context_test SOURCES ContextTest.cpp
+      TEST core_test SOURCES CoreTest.cpp
+      TEST ensure_test SOURCES EnsureTest.cpp
+      TEST executor_test SOURCES ExecutorTest.cpp
+      TEST fsm_test SOURCES FSMTest.cpp
+      TEST filter_test SOURCES FilterTest.cpp
+      TEST future_splitter_test SOURCES FutureSplitterTest.cpp
+      # MSVC SFINAE bug
+      #TEST future_test SOURCES FutureTest.cpp
+      TEST header_compile_test SOURCES HeaderCompileTest.cpp
+      TEST interrupt_test SOURCES InterruptTest.cpp
+      TEST map_test SOURCES MapTest.cpp
+      TEST non_copyable_lambda_test SOURCES NonCopyableLambdaTest.cpp
+      TEST poll_test SOURCES PollTest.cpp
+      TEST promise_test SOURCES PromiseTest.cpp
+      TEST reduce_test SOURCES ReduceTest.cpp
+      # MSVC SFINAE bug
+      #TEST retrying_test SOURCES RetryingTest.cpp
+      TEST self_destruct_test SOURCES SelfDestructTest.cpp
+      TEST shared_promise_test SOURCES SharedPromiseTest.cpp
+      TEST test_executor_test SOURCES TestExecutorTest.cpp
+      TEST then_compile_test
         HEADERS
           ThenCompileTest.h
         SOURCES
-          BarrierTest.cpp
-          CollectTest.cpp
-          ContextTest.cpp
-          CoreTest.cpp
-          EnsureTest.cpp
-          ExecutorTest.cpp
-          FSMTest.cpp
-          FilterTest.cpp
-          # MSVC SFINAE bug
-          #FutureTest.cpp
-          HeaderCompileTest.cpp
-          InterruptTest.cpp
-          MapTest.cpp
-          NonCopyableLambdaTest.cpp
-          PollTest.cpp
-          PromiseTest.cpp
-          ReduceTest.cpp
-          # MSVC SFINAE bug
-          #RetryingTest.cpp
-          SelfDestructTest.cpp
-          SharedPromiseTest.cpp
           ThenCompileTest.cpp
-          ThenTest.cpp
-          TimekeeperTest.cpp
-          TimesTest.cpp
-          UnwrapTest.cpp
-          ViaTest.cpp
-          WaitTest.cpp
-          WhenTest.cpp
-          WhileDoTest.cpp
-          WillEqualTest.cpp
-          WindowTest.cpp
+      TEST then_test SOURCES ThenTest.cpp
+      TEST timekeeper_test SOURCES TimekeeperTest.cpp
+      TEST times_test SOURCES TimesTest.cpp
+      TEST unwrap_test SOURCES UnwrapTest.cpp
+      TEST via_test SOURCES ViaTest.cpp
+      TEST wait_test SOURCES WaitTest.cpp
+      TEST when_test SOURCES WhenTest.cpp
+      TEST while_do_test SOURCES WhileDoTest.cpp
+      TEST will_equal_test SOURCES WillEqualTest.cpp
+      TEST window_test SOURCES WindowTest.cpp
 
     DIRECTORY gen/test/
       # MSVC bug can't resolve initializer_list constructor properly
@@ -364,6 +409,7 @@ if (BUILD_TESTS)
           AsyncSSLSocketTest.h
         SOURCES
           AsyncPipeTest.cpp
+          AsyncSignalHandlerTest.cpp
           AsyncSocketExceptionTest.cpp
           AsyncSocketTest.cpp
           AsyncSocketTest2.cpp
@@ -378,6 +424,7 @@ if (BUILD_TESTS)
       TEST AsyncUDPSocketTest SOURCES AsyncUDPSocketTest.cpp
       TEST DelayedDestructionTest SOURCES DelayedDestructionTest.cpp
       TEST DelayedDestructionBaseTest SOURCES DelayedDestructionBaseTest.cpp
+      TEST DestructorCheckTest SOURCES DestructorCheckTest.cpp
       TEST EventBaseTest SOURCES EventBaseTest.cpp
       TEST EventBaseLocalTest SOURCES EventBaseLocalTest.cpp
       TEST HHWheelTimerTest SOURCES HHWheelTimerTest.cpp
@@ -396,9 +443,15 @@ if (BUILD_TESTS)
       TEST constexpr_test SOURCES ConstexprTest.cpp
       TEST libgen-test SOURCES LibgenTest.cpp
       TEST time-test SOURCES TimeTest.cpp
+      TEST openssl_portability_test SOURCES OpenSSLPortabilityTest.cpp
 
     DIRECTORY ssl/test/
       TEST openssl_hash_test SOURCES OpenSSLHashTest.cpp
+
+    DIRECTORY stats/test/
+      TEST histogram_test SOURCES HistogramTest.cpp
+      TEST timeseries_histogram_test SOURCES TimeseriesHistogramTest.cpp
+      TEST timeseries_test SOURCES TimeseriesTest.cpp
 
     DIRECTORY test/
       TEST ahm_int_stress_test SOURCES AHMIntStressTest.cpp
@@ -417,7 +470,6 @@ if (BUILD_TESTS)
       TEST baton_test SOURCES BatonTest.cpp
       TEST bit_iterator_test SOURCES BitIteratorTest.cpp
       TEST bits_test SOURCES BitsTest.cpp
-      TEST cache_locality_test SOURCES CacheLocalityTest.cpp
       TEST cacheline_padded_test SOURCES CachelinePaddedTest.cpp
       TEST call_once_test SOURCES CallOnceTest.cpp
       TEST checksum_test SOURCES ChecksumTest.cpp
@@ -455,7 +507,6 @@ if (BUILD_TESTS)
       TEST group_varint_test_ssse3 SOURCES GroupVarintTest.cpp
       TEST has_member_fn_traits_test SOURCES HasMemberFnTraitsTest.cpp
       TEST hash_test SOURCES HashTest.cpp
-      TEST histogram_test SOURCES HistogramTest.cpp
       TEST indestructible_test SOURCES IndestructibleTest.cpp
       TEST indexed_mem_pool_test SOURCES IndexedMemPoolTest.cpp
       # MSVC Preprocessor stringizing raw string literals bug
@@ -516,11 +567,10 @@ if (BUILD_TESTS)
       TEST synchronized_test SOURCES SynchronizedTest.cpp
       TEST thread_cached_arena_test SOURCES ThreadCachedArenaTest.cpp
       TEST thread_cached_int_test SOURCES ThreadCachedIntTest.cpp
+      TEST thread_id_test SOURCES ThreadIdTest.cpp
       TEST thread_local_test SOURCES ThreadLocalTest.cpp
       TEST thread_name_test SOURCES ThreadNameTest.cpp
       TEST timeout_queue_test SOURCES TimeoutQueueTest.cpp
-      TEST timeseries_histogram_test SOURCES TimeseriesHistogramTest.cpp
-      TEST timeseries_test SOURCES TimeseriesTest.cpp
       TEST token_bucket_test SOURCES TokenBucketTest.cpp
       TEST traits_test SOURCES TraitsTest.cpp
       TEST try_test SOURCES TryTest.cpp

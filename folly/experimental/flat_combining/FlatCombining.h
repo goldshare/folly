@@ -20,7 +20,7 @@
 #include <folly/Function.h>
 #include <folly/IndexedMemPool.h>
 #include <folly/Portability.h>
-#include <folly/detail/CacheLocality.h>
+#include <folly/concurrency/CacheLocality.h>
 
 #include <atomic>
 #include <cassert>
@@ -225,7 +225,8 @@ class FlatCombining {
     }
   };
 
-  using Pool = folly::IndexedMemPool<Rec, 32, 4, Atom, false, false>;
+  using Pool = folly::
+      IndexedMemPool<Rec, 32, 4, Atom, IndexedMemPoolTraitsLazyRecycle<Rec>>;
 
  public:
   /// The constructor takes three optional arguments:
@@ -236,7 +237,7 @@ class FlatCombining {
   ///   on the request records (if 0, then kDefaultMaxops)
   explicit FlatCombining(
       const bool dedicated = true,
-      uint32_t numRecs = 0, // number of combining records
+      const uint32_t numRecs = 0, // number of combining records
       const uint32_t maxOps = 0 // hint of max ops per combining session
       )
       : numRecs_(numRecs == 0 ? kDefaultNumRecs : numRecs),
@@ -277,13 +278,6 @@ class FlatCombining {
     m_.lock();
   }
 
-  // Give the caller exclusive access through a lock holder.
-  // No need for explicit release.
-  template <typename LockHolder>
-  void acquireExclusive(LockHolder& l) {
-    l = LockHolder(m_);
-  }
-
   // Try to give the caller exclusive access. Returns true iff successful.
   bool tryExclusive() {
     return m_.try_lock();
@@ -292,6 +286,21 @@ class FlatCombining {
   // Release exclusive access. The caller must have exclusive access.
   void releaseExclusive() {
     m_.unlock();
+  }
+
+  // Give the lock holder ownership of the mutex and exclusive access.
+  // No need for explicit release.
+  template <typename LockHolder>
+  void holdLock(LockHolder& l) {
+    l = LockHolder(m_);
+  }
+
+  // Give the caller's lock holder ownership of the mutex but without
+  // exclusive access. The caller can later use the lock holder to try
+  // to acquire exclusive access.
+  template <typename LockHolder>
+  void holdLock(LockHolder& l, std::defer_lock_t) {
+    l = LockHolder(m_, std::defer_lock);
   }
 
   // Execute an operation without combining
@@ -556,6 +565,7 @@ class FlatCombining {
     if (!dedicated_) {
       while (isPending()) {
         clearPending();
+        ++sessions_;
         combined_ += combiningSession();
       }
     }

@@ -208,7 +208,8 @@ template <class String> void clause11_21_4_2_lprime(String & test) {
 }
 template <class String> void clause11_21_4_2_m(String & test) {
   // Assignment from char
-  test = random('a', 'z');
+  using value_type = typename String::value_type;
+  test = random(static_cast<value_type>('a'), static_cast<value_type>('z'));
 }
 template <class String> void clause11_21_4_2_n(String & test) {
   // Assignment from initializer_list<char>
@@ -1596,7 +1597,7 @@ TEST(U16FBString, compareToStdU16StringLong) {
   EXPECT_TRUE(fbB >= stdB);
 }
 
-#ifndef __ANDROID__ // Android's handling of char32_t causes this test to fail
+#if FOLLY_HAVE_WCHAR_SUPPORT
 TEST(U32FBString, compareToStdU32StringLong) {
   using folly::basic_fbstring;
   using namespace std::string_literals;
