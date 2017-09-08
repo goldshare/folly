@@ -25,10 +25,11 @@
 
 #include <folly/Optional.h>
 #include <folly/Portability.h>
-#include <folly/futures/DrivableExecutor.h>
-#include <folly/futures/Promise.h>
 #include <folly/Try.h>
+#include <folly/Utility.h>
+#include <folly/futures/DrivableExecutor.h>
 #include <folly/futures/FutureException.h>
+#include <folly/futures/Promise.h>
 #include <folly/futures/detail/Types.h>
 
 // boring predeclarations and details
@@ -45,6 +46,8 @@ class Future {
  public:
   typedef T value_type;
 
+  static Future<T> makeEmpty(); // equivalent to moved-from
+
   // not copyable
   Future(Future const&) = delete;
   Future& operator=(Future const&) = delete;
@@ -52,6 +55,31 @@ class Future {
   // movable
   Future(Future&&) noexcept;
   Future& operator=(Future&&) noexcept;
+
+  // converting move
+  template <
+      class T2,
+      typename std::enable_if<
+          !std::is_same<T, typename std::decay<T2>::type>::value &&
+              std::is_constructible<T, T2&&>::value &&
+              std::is_convertible<T2&&, T>::value,
+          int>::type = 0>
+  /* implicit */ Future(Future<T2>&&);
+  template <
+      class T2,
+      typename std::enable_if<
+          !std::is_same<T, typename std::decay<T2>::type>::value &&
+              std::is_constructible<T, T2&&>::value &&
+              !std::is_convertible<T2&&, T>::value,
+          int>::type = 0>
+  explicit Future(Future<T2>&&);
+  template <
+      class T2,
+      typename std::enable_if<
+          !std::is_same<T, typename std::decay<T2>::type>::value &&
+              std::is_constructible<T, T2&&>::value,
+          int>::type = 0>
+  Future& operator=(Future<T2>&&);
 
   /// Construct a Future from a value (perfect forwarding)
   template <class T2 = T, typename =
@@ -62,6 +90,12 @@ class Future {
   template <class T2 = T>
   /* implicit */ Future(
       typename std::enable_if<std::is_same<Unit, T2>::value>::type* = nullptr);
+
+  template <
+      class... Args,
+      typename std::enable_if<std::is_constructible<T, Args&&...>::value, int>::
+          type = 0>
+  explicit Future(in_place_t, Args&&... args);
 
   ~Future();
 
@@ -168,19 +202,9 @@ class Future {
     value(), which may rethrow if this has captured an exception. If func
     throws, the exception will be captured in the Future that is returned.
     */
-  // gcc 4.8 requires that we cast function reference types to function pointer
-  // types. Fore more details see the comment on FunctionReferenceToPointer
-  // in Future-pre.h.
-  // gcc versions 4.9 and above (as well as clang) do not require this hack.
-  // For those, the FF tenplate parameter can be removed and occurences of FF
-  // replaced with F.
-  template <
-      typename F,
-      typename FF = typename detail::FunctionReferenceToPointer<F>::type,
-      typename R = detail::callableResult<T, FF>>
+  template <typename F, typename R = futures::detail::callableResult<T, F>>
   typename R::Return then(F&& func) {
-    typedef typename R::Arg Arguments;
-    return thenImplementation<FF, R>(std::forward<FF>(func), Arguments());
+    return thenImplementation<F, R>(std::forward<F>(func), typename R::Arg());
   }
 
   /// Variant where func is an member function
@@ -237,33 +261,35 @@ class Future {
   ///   });
   template <class F>
   typename std::enable_if<
-    !detail::callableWith<F, exception_wrapper>::value &&
-    !detail::Extract<F>::ReturnsFuture::value,
-    Future<T>>::type
+      !futures::detail::callableWith<F, exception_wrapper>::value &&
+          !futures::detail::callableWith<F, exception_wrapper&>::value &&
+          !futures::detail::Extract<F>::ReturnsFuture::value,
+      Future<T>>::type
   onError(F&& func);
 
   /// Overload of onError where the error callback returns a Future<T>
   template <class F>
   typename std::enable_if<
-    !detail::callableWith<F, exception_wrapper>::value &&
-    detail::Extract<F>::ReturnsFuture::value,
-    Future<T>>::type
+      !futures::detail::callableWith<F, exception_wrapper>::value &&
+          !futures::detail::callableWith<F, exception_wrapper&>::value &&
+          futures::detail::Extract<F>::ReturnsFuture::value,
+      Future<T>>::type
   onError(F&& func);
 
   /// Overload of onError that takes exception_wrapper and returns Future<T>
   template <class F>
   typename std::enable_if<
-    detail::callableWith<F, exception_wrapper>::value &&
-    detail::Extract<F>::ReturnsFuture::value,
-    Future<T>>::type
+      futures::detail::callableWith<F, exception_wrapper>::value &&
+          futures::detail::Extract<F>::ReturnsFuture::value,
+      Future<T>>::type
   onError(F&& func);
 
   /// Overload of onError that takes exception_wrapper and returns T
   template <class F>
   typename std::enable_if<
-    detail::callableWith<F, exception_wrapper>::value &&
-    !detail::Extract<F>::ReturnsFuture::value,
-    Future<T>>::type
+      futures::detail::callableWith<F, exception_wrapper>::value &&
+          !futures::detail::Extract<F>::ReturnsFuture::value,
+      Future<T>>::type
   onError(F&& func);
 
   /// func is like std::function<void()> and is executed unconditionally, and
@@ -448,13 +474,15 @@ class Future {
   }
 
  protected:
-  typedef detail::Core<T>* corePtr;
+  typedef futures::detail::Core<T>* corePtr;
 
   // shared core state object
   corePtr core_;
 
   explicit
   Future(corePtr obj) : core_(obj) {}
+
+  explicit Future(futures::detail::EmptyConstruct) noexcept;
 
   void detach();
 
@@ -493,13 +521,13 @@ class Future {
   // e.g. f.then([](Try<T> t){ return t.value(); });
   template <typename F, typename R, bool isTry, typename... Args>
   typename std::enable_if<!R::ReturnsFuture::value, typename R::Return>::type
-  thenImplementation(F&& func, detail::argResult<isTry, F, Args...>);
+  thenImplementation(F&& func, futures::detail::argResult<isTry, F, Args...>);
 
   // Variant: returns a Future
   // e.g. f.then([](Try<T> t){ return makeFuture<T>(t); });
   template <typename F, typename R, bool isTry, typename... Args>
   typename std::enable_if<R::ReturnsFuture::value, typename R::Return>::type
-  thenImplementation(F&& func, detail::argResult<isTry, F, Args...>);
+  thenImplementation(F&& func, futures::detail::argResult<isTry, F, Args...>);
 
   Executor* getExecutor() { return core_->getExecutor(); }
   void setExecutor(Executor* x, int8_t priority = Executor::MID_PRI) {
@@ -507,6 +535,6 @@ class Future {
   }
 };
 
-} // folly
+} // namespace folly
 
 #include <folly/futures/Future-inl.h>

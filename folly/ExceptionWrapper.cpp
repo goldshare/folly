@@ -60,6 +60,20 @@ std::exception const* get_std_exception_(std::exception_ptr eptr) noexcept {
 }
 }
 
+exception_wrapper exception_wrapper::from_exception_ptr(
+    std::exception_ptr const& ptr) noexcept {
+  if (!ptr) {
+    return exception_wrapper();
+  }
+  try {
+    std::rethrow_exception(ptr);
+  } catch (std::exception& e) {
+    return exception_wrapper(std::current_exception(), e);
+  } catch (...) {
+    return exception_wrapper(std::current_exception());
+  }
+}
+
 exception_wrapper::exception_wrapper(std::exception_ptr ptr) noexcept
     : exception_wrapper{} {
   if (ptr) {
@@ -76,11 +90,11 @@ exception_wrapper::exception_wrapper(std::exception_ptr ptr) noexcept
   }
 }
 
-[[noreturn]] void exception_wrapper::onNoExceptionError() {
+[[noreturn]] void exception_wrapper::onNoExceptionError(
+    char const* const name) {
   std::ios_base::Init ioinit_; // ensure std::cerr is alive
-  std::cerr
-      << "Cannot use `throw_exception` with an empty folly::exception_wrapper"
-      << std::endl;
+  std::cerr << "Cannot use `" << name
+            << "` with an empty folly::exception_wrapper" << std::endl;
   std::terminate();
 }
 
@@ -88,4 +102,4 @@ fbstring exceptionStr(exception_wrapper const& ew) {
   return ew.what();
 }
 
-} // folly
+} // namespace folly

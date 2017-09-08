@@ -98,7 +98,6 @@ inline uint64_t bench(std::string name, int ops, const RepFunc& repFn) {
 inline uint64_t listBench(std::string name, int nthreads, int size) {
   int ops = 100000;
   auto repFn = [&] {
-    hazptr_holder dummy[100];
     SWMRListSet<uint64_t> s;
     auto init = [&] {
       for (int i = 0; i < size; ++i) {
@@ -119,7 +118,6 @@ inline uint64_t listBench(std::string name, int nthreads, int size) {
 inline uint64_t holderBench(std::string name, int nthreads) {
   int ops = 100000;
   auto repFn = [&] {
-    hazptr_holder dummy[100];
     auto init = [] {};
     auto fn = [&](int tid) {
       for (int j = tid; j < ops; j += nthreads) {
@@ -138,7 +136,6 @@ inline uint64_t retireBench(std::string name, int nthreads) {
   };
   int ops = 100000;
   auto repFn = [&] {
-    hazptr_holder dummy[100];
     auto init = [] {};
     auto fn = [&](int tid) {
       for (int j = tid; j < ops; j += nthreads) {
@@ -174,8 +171,8 @@ inline void benches(std::string name) {
   std::cout << "----------------------------------------------------------\n";
 }
 
-} // namespace hazptr {
-} // namespace folly {
+} // namespace hazptr
+} // namespace folly
 
 /*
 ------------------------------------------- no amb - no tc

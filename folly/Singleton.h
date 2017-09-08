@@ -405,7 +405,7 @@ class SingletonVault {
    *
    * Sample usage:
    *
-   *   wangle::IOThreadPoolExecutor executor(max_concurrency_level);
+   *   folly::IOThreadPoolExecutor executor(max_concurrency_level);
    *   folly::Baton<> done;
    *   doEagerInitVia(executor, &done);
    *   done.wait();  // or 'timed_wait', or spin with 'try_wait'
@@ -532,9 +532,10 @@ class SingletonVault {
 // singletons.  Create instances of this class in the global scope of
 // type Singleton<T> to register your singleton for later access via
 // Singleton<T>::try_get().
-template <typename T,
-          typename Tag = detail::DefaultTag,
-          typename VaultTag = detail::DefaultTag /* for testing */>
+template <
+    typename T,
+    typename Tag = detail::DefaultTag,
+    typename VaultTag = detail::DefaultTag /* for testing */>
 class Singleton {
  public:
   typedef std::function<T*(void)> CreateFunc;
@@ -668,6 +669,21 @@ class LeakySingleton {
   }
 
   static T& get() { return instance(); }
+
+  static void make_mock(std::nullptr_t /* c */ = nullptr) {
+    make_mock([]() { return new T; });
+  }
+
+  static void make_mock(CreateFunc createFunc) {
+    auto& entry = entryInstance();
+    if (createFunc == nullptr) {
+      throw std::logic_error(
+          "nullptr_t should be passed if you want T to be default constructed");
+    }
+
+    entry.createFunc = createFunc;
+    entry.state = State::Dead;
+  }
 
  private:
   enum class State { NotRegistered, Dead, Living };

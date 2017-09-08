@@ -31,8 +31,8 @@
 #include <sys/types.h>
 
 #include <chrono>
-#include <memory>
 #include <map>
+#include <memory>
 
 namespace folly {
 
@@ -1185,4 +1185,4 @@ class AsyncSocket : virtual public AsyncTransportWrapper {
 #pragma vtordisp(pop)
 #endif
 
-} // folly
+} // namespace folly

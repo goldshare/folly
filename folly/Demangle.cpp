@@ -17,13 +17,13 @@
 #include <folly/Demangle.h>
 
 #include <algorithm>
-#include <string.h>
+#include <cstring>
 
 #include <folly/Malloc.h>
 #include <folly/portability/Config.h>
 
 #if FOLLY_HAVE_CPLUS_DEMANGLE_V3_CALLBACK
-# include <cxxabi.h>
+#include <cxxabi.h>
 
 // From libiberty
 //
@@ -102,7 +102,7 @@ void demangleCallback(const char* str, size_t size, void* p) {
   buf->total += size;
 }
 
-}  // namespace
+} // namespace
 
 size_t demangle(const char* name, char* out, size_t outSize) {
 #ifdef FOLLY_DEMANGLE_MAX_SYMBOL_SIZE
@@ -159,4 +159,4 @@ size_t strlcpy(char* dest, const char* const src, size_t size) {
   return len;
 }
 
-} // folly
+} // namespace folly

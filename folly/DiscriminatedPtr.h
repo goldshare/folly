@@ -28,12 +28,14 @@
 
 #include <limits>
 #include <stdexcept>
+
 #include <glog/logging.h>
+
 #include <folly/Likely.h>
 #include <folly/Portability.h>
 #include <folly/detail/DiscriminatedPtrDetail.h>
 
-#if !FOLLY_X64 && !FOLLY_A64 && !FOLLY_PPC64
+#if !FOLLY_X64 && !FOLLY_AARCH64 && !FOLLY_PPC64
 # error "DiscriminatedPtr is x64, arm64 and ppc64 specific code."
 #endif
 
@@ -236,4 +238,4 @@ decltype(auto) apply_visitor(
   return variant.apply(std::forward<Visitor>(visitor));
 }
 
-}  // namespace folly
+} // namespace folly

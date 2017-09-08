@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 // This must come before the OpenSSL includes.
 #include <folly/portability/Windows.h>
 
@@ -115,6 +117,8 @@ void RSA_get0_key(
     const BIGNUM** e,
     const BIGNUM** d);
 RSA* EVP_PKEY_get0_RSA(EVP_PKEY* pkey);
+DSA* EVP_PKEY_get0_DSA(EVP_PKEY* pkey);
+DH* EVP_PKEY_get0_DH(EVP_PKEY* pkey);
 EC_KEY* EVP_PKEY_get0_EC_KEY(EVP_PKEY* pkey);
 #endif
 
@@ -135,17 +139,53 @@ void HMAC_CTX_free(HMAC_CTX* ctx);
 unsigned long SSL_SESSION_get_ticket_lifetime_hint(const SSL_SESSION* s);
 int SSL_SESSION_has_ticket(const SSL_SESSION* s);
 int DH_set0_pqg(DH* dh, BIGNUM* p, BIGNUM* q, BIGNUM* g);
+void DH_get0_pqg(
+    const DH* dh,
+    const BIGNUM** p,
+    const BIGNUM** q,
+    const BIGNUM** g);
+void DH_get0_key(const DH* dh, const BIGNUM** pub_key, const BIGNUM** priv_key);
+
+void DSA_get0_pqg(
+    const DSA* dsa,
+    const BIGNUM** p,
+    const BIGNUM** q,
+    const BIGNUM** g);
+void DSA_get0_key(
+    const DSA* dsa,
+    const BIGNUM** pub_key,
+    const BIGNUM** priv_key);
 
 X509* X509_STORE_CTX_get0_cert(X509_STORE_CTX* ctx);
 STACK_OF(X509) * X509_STORE_CTX_get0_chain(X509_STORE_CTX* ctx);
 STACK_OF(X509) * X509_STORE_CTX_get0_untrusted(X509_STORE_CTX* ctx);
 bool RSA_set0_key(RSA* r, BIGNUM* n, BIGNUM* e, BIGNUM* d);
+void RSA_get0_factors(const RSA* r, const BIGNUM** p, const BIGNUM** q);
+void RSA_get0_crt_params(
+    const RSA* r,
+    const BIGNUM** dmp1,
+    const BIGNUM** dmq1,
+    const BIGNUM** iqmp);
+int ECDSA_SIG_set0(ECDSA_SIG* sig, BIGNUM* r, BIGNUM* s);
+void ECDSA_SIG_get0(const ECDSA_SIG* sig, const BIGNUM** pr, const BIGNUM** ps);
+
+using OPENSSL_INIT_SETTINGS = void;
+int OPENSSL_init_ssl(uint64_t opts, const OPENSSL_INIT_SETTINGS* settings);
+void OPENSSL_cleanup();
+
+const ASN1_INTEGER* X509_REVOKED_get0_serialNumber(const X509_REVOKED* r);
+const ASN1_TIME* X509_REVOKED_get0_revocationDate(const X509_REVOKED* r);
+
 #endif
 
 #if FOLLY_OPENSSL_IS_110
 // Note: this was a type and has been fixed upstream, so the next 1.1.0
 // minor version upgrade will need to remove this
 #define OPENSSL_lh_new OPENSSL_LH_new
+
+// OpenSSL v1.1.0 removed support for SSLv2, and also removed the define that
+// indicates it isn't supported.
+#define OPENSSL_NO_SSL2
 #endif
 }
 }

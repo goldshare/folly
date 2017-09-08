@@ -34,7 +34,9 @@
 #include <folly/Demangle.h>
 #include <folly/ExceptionString.h>
 #include <folly/FBString.h>
+#include <folly/Portability.h>
 #include <folly/Traits.h>
+#include <folly/Utility.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -42,8 +44,7 @@
 #pragma GCC diagnostic ignored "-Wpotentially-evaluated-expression"
 // GCC gets confused about lambda scopes and issues shadow-local warnings for
 // parameters in totally different functions.
-#pragma GCC diagnostic ignored "-Wshadow-local"
-#pragma GCC diagnostic ignored "-Wshadow-compatible-local"
+FOLLY_GCC_DISABLE_NEW_SHADOW_WARNINGS
 #endif
 
 #define FOLLY_EXCEPTION_WRAPPER_H_INCLUDED
@@ -196,7 +197,7 @@ class exception_wrapper final {
     exception_wrapper (*get_exception_ptr_)(exception_wrapper const*);
   };
 
-  [[noreturn]] static void onNoExceptionError();
+  [[noreturn]] static void onNoExceptionError(char const* name);
 
   template <class Ret, class... Args>
   static Ret noop_(Args...);
@@ -367,6 +368,9 @@ class exception_wrapper final {
   static bool with_exception_(This& this_, Fn fn_);
 
  public:
+  static exception_wrapper from_exception_ptr(
+      std::exception_ptr const& eptr) noexcept;
+
   //! Default-constructs an empty `exception_wrapper`
   //! \post `type() == none()`
   exception_wrapper() noexcept {}
@@ -443,7 +447,7 @@ class exception_wrapper final {
   //! Swaps the value of `*this` with the value of `that`
   void swap(exception_wrapper& that) noexcept;
 
-  //! \return `true` if `*this` is not holding an exception.
+  //! \return `true` if `*this` is holding an exception.
   explicit operator bool() const noexcept;
 
   //! \return `!bool(*this)`
@@ -604,7 +608,7 @@ constexpr exception_wrapper::VTable exception_wrapper::InPlace<Ex>::ops_;
  */
 template <class Ex, typename... As>
 exception_wrapper make_exception_wrapper(As&&... as) {
-  return exception_wrapper{in_place<Ex>, std::forward<As>(as)...};
+  return exception_wrapper{in_place_type<Ex>, std::forward<As>(as)...};
 }
 
 /**
@@ -642,7 +646,7 @@ inline exception_wrapper try_and_catch_(F&& f) {
     return exception_wrapper(std::current_exception(), ex);
   }
 }
-} // detail
+} // namespace detail
 
 //! `try_and_catch` is a simple replacement for `try {} catch(){}`` that allows
 //! you to specify which derived exceptions you would like to catch and store in
@@ -683,7 +687,7 @@ template <typename... Exceptions, typename F>
 exception_wrapper try_and_catch(F&& fn) {
   return detail::try_and_catch_<F, Exceptions...>(std::forward<F>(fn));
 }
-} // folly
+} // namespace folly
 
 #include <folly/ExceptionWrapper-inl.h>
 

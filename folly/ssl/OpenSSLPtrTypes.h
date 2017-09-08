@@ -32,6 +32,13 @@ using ASN1TimeUniquePtr = std::unique_ptr<ASN1_TIME, ASN1TimeDeleter>;
 // X509
 using X509Deleter = folly::static_function_deleter<X509, &X509_free>;
 using X509UniquePtr = std::unique_ptr<X509, X509Deleter>;
+using X509ExtensionDeleter =
+    folly::static_function_deleter<X509_EXTENSION, &X509_EXTENSION_free>;
+using X509ExtensionUniquePtr =
+    std::unique_ptr<X509_EXTENSION, X509ExtensionDeleter>;
+using X509StoreDeleter =
+    folly::static_function_deleter<X509_STORE, &X509_STORE_free>;
+using X509StoreUniquePtr = std::unique_ptr<X509_STORE, X509StoreDeleter>;
 using X509StoreCtxDeleter =
     folly::static_function_deleter<X509_STORE_CTX, &X509_STORE_CTX_free>;
 using X509StoreCtxUniquePtr =
@@ -71,7 +78,9 @@ using BioDeleter = folly::static_function_deleter<BIO, &BIO_vfree>;
 using BioUniquePtr = std::unique_ptr<BIO, BioDeleter>;
 using BioChainDeleter = folly::static_function_deleter<BIO, &BIO_free_all>;
 using BioChainUniquePtr = std::unique_ptr<BIO, BioChainDeleter>;
-inline void BIO_free_fb(BIO* bio) { CHECK_EQ(1, BIO_free(bio)); }
+inline void BIO_free_fb(BIO* bio) {
+  CHECK_EQ(1, BIO_free(bio));
+}
 using BioDeleterFb = folly::static_function_deleter<BIO, &BIO_free_fb>;
 using BioUniquePtrFb = std::unique_ptr<BIO, BioDeleterFb>;
 

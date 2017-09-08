@@ -22,65 +22,6 @@
 
 namespace folly {
 
-// TLDR: Prefer using operator< for ordering. And when
-// a and b are equivalent objects, we return b to make
-// sorting stable.
-// See http://stepanovpapers.com/notes.pdf for details.
-template <typename T>
-constexpr T constexpr_max(T a, T b) {
-  return b < a ? a : b;
-}
-
-// When a and b are equivalent objects, we return a to
-// make sorting stable.
-template <typename T>
-constexpr T constexpr_min(T a, T b) {
-  return b < a ? b : a;
-}
-
-namespace detail {
-
-template <typename T, typename = void>
-struct constexpr_abs_helper {};
-
-template <typename T>
-struct constexpr_abs_helper<
-    T,
-    typename std::enable_if<std::is_floating_point<T>::value>::type> {
-  static constexpr T go(T t) {
-    return t < static_cast<T>(0) ? -t : t;
-  }
-};
-
-template <typename T>
-struct constexpr_abs_helper<
-    T,
-    typename std::enable_if<
-        std::is_integral<T>::value && !std::is_same<T, bool>::value &&
-        std::is_unsigned<T>::value>::type> {
-  static constexpr T go(T t) {
-    return t;
-  }
-};
-
-template <typename T>
-struct constexpr_abs_helper<
-    T,
-    typename std::enable_if<
-        std::is_integral<T>::value && !std::is_same<T, bool>::value &&
-        std::is_signed<T>::value>::type> {
-  static constexpr typename std::make_unsigned<T>::type go(T t) {
-    return typename std::make_unsigned<T>::type(t < static_cast<T>(0) ? -t : t);
-  }
-};
-} // namespace detail
-
-template <typename T>
-constexpr auto constexpr_abs(T t)
-    -> decltype(detail::constexpr_abs_helper<T>::go(t)) {
-  return detail::constexpr_abs_helper<T>::go(t);
-}
-
 namespace detail {
 
 template <typename Char>
@@ -101,7 +42,7 @@ template <>
 constexpr size_t constexpr_strlen(const char* s) {
 #if defined(__clang__)
   return __builtin_strlen(s);
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) || defined(__CUDACC__)
   return detail::constexpr_strlen_internal(s, 0);
 #else
   return std::strlen(s);

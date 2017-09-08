@@ -411,7 +411,55 @@ TEST(DynamicConverter, partial_dynamics) {
   EXPECT_EQ(d, toDynamic(c));
 
   std::unordered_map<std::string, dynamic> m{{"one", 1}, {"two", 2}};
-
   dynamic md = dynamic::object("one", 1)("two", 2);
   EXPECT_EQ(md, toDynamic(m));
+}
+
+TEST(DynamicConverter, asan_exception_case_umap) {
+  EXPECT_THROW(
+      (convertTo<std::unordered_map<int, int>>(dynamic::array(1))), TypeError);
+}
+
+TEST(DynamicConverter, asan_exception_case_uset) {
+  EXPECT_THROW(
+      (convertTo<std::unordered_set<int>>(
+          dynamic::array(1, dynamic::array(), 3))),
+      TypeError);
+}
+
+static int constructB = 0;
+static int destroyB = 0;
+static int ticker = 0;
+struct B {
+  struct BException : std::exception {};
+
+  /* implicit */ B(int x) : x_(x) {
+    if (ticker-- == 0) {
+      throw BException();
+    }
+    constructB++;
+  }
+  B(const B& o) : x_(o.x_) {
+    constructB++;
+  }
+  ~B() {
+    destroyB++;
+  }
+  int x_;
+};
+namespace folly {
+template <>
+struct DynamicConverter<B> {
+  static B convert(const dynamic& d) {
+    return B(convertTo<int>(d));
+  }
+};
+}
+
+TEST(DynamicConverter, double_destroy) {
+  dynamic d = dynamic::array(1, 3, 5, 7, 9, 11, 13, 15, 17);
+  ticker = 3;
+
+  EXPECT_THROW(convertTo<std::vector<B>>(d), B::BException);
+  EXPECT_EQ(constructB, destroyB);
 }

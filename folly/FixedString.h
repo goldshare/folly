@@ -28,28 +28,12 @@
 #include <type_traits>
 #include <utility>
 
+#include <folly/ConstexprMath.h>
+#include <folly/Portability.h>
 #include <folly/Range.h>
 #include <folly/Utility.h>
 #include <folly/portability/BitsFunctexcept.h>
 #include <folly/portability/Constexpr.h>
-
-// Define FOLLY_USE_CPP14_CONSTEXPR to be true if the compiler's C++14
-// constexpr support is "good enough".
-#ifndef FOLLY_USE_CPP14_CONSTEXPR
-#if defined(__clang__)
-#define FOLLY_USE_CPP14_CONSTEXPR __cplusplus >= 201300L
-#elif defined(__GNUC__)
-#define FOLLY_USE_CPP14_CONSTEXPR __cplusplus >= 201304L
-#else
-#define FOLLY_USE_CPP14_CONSTEXPR 0 // MSVC?
-#endif
-#endif
-
-#if FOLLY_USE_CPP14_CONSTEXPR
-#define FOLLY_CPP14_CONSTEXPR constexpr
-#else
-#define FOLLY_CPP14_CONSTEXPR inline
-#endif
 
 namespace folly {
 
@@ -120,7 +104,7 @@ enum class Cmp : int { LT = -1, EQ = 0, GT = 1 };
 
 // Rather annoyingly, GCC's -Warray-bounds warning issues false positives for
 // this code. See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=61971
-#if defined(__GNUC__) && !defined(__CLANG__) && __GNUC__ <= 5
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 5
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #endif
@@ -319,7 +303,7 @@ struct Helper {
   }
 };
 
-#if defined(__GNUC__) && !defined(__CLANG__) && __GNUC__ <= 4
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ <= 4
 #pragma GCC diagnostic pop
 #endif
 
@@ -329,18 +313,6 @@ FOLLY_CPP14_CONSTEXPR void constexpr_swap(T& a, T& b) noexcept(
   T tmp((std::move(a)));
   a = std::move(b);
   b = std::move(tmp);
-}
-
-// FUTURE: use const_log2 to fold instantiations of BasicFixedString together.
-// All BasicFixedString<C, N> instantiations could share the implementation
-// of BasicFixedString<C, M>, where M is the next highest power of 2 after N.
-//
-// Also, because of alignment of the data_ and size_ members, N should never be
-// smaller than `(alignof(std::size_t)/sizeof(C))-1` (-1 because of the null
-// terminator). OR, create a specialization for BasicFixedString<C, 0u> that
-// does not have a size_ member, since it is unnecessary.
-constexpr std::size_t const_log2(std::size_t N, std::size_t log2 = 0u) {
-  return N / 2u == 0u ? log2 : const_log2(N / 2u, log2 + 1u);
 }
 
 // For constexpr reverse iteration over a BasicFixedString
@@ -545,6 +517,15 @@ class BasicFixedString : private detail::fixedstring::FixedStringBase {
   friend class BasicFixedString;
   friend struct detail::fixedstring::Helper;
 
+  // FUTURE: use constexpr_log2 to fold instantiations of BasicFixedString
+  // together. All BasicFixedString<C, N> instantiations could share the
+  // implementation of BasicFixedString<C, M>, where M is the next highest power
+  // of 2 after N.
+  //
+  // Also, because of alignment of the data_ and size_ members, N should never
+  // be smaller than `(alignof(std::size_t)/sizeof(C))-1` (-1 because of the
+  // null terminator). OR, create a specialization for BasicFixedString<C, 0u>
+  // that does not have a size_ member, since it is unnecessary.
   Char data_[N + 1u]; // +1 for the null terminator
   std::size_t size_; // Nbr of chars, not incl. null terminator. size_ <= N.
 
@@ -2937,6 +2918,15 @@ class BasicFixedString : private detail::fixedstring::FixedStringBase {
         folly::make_index_sequence<N + 1u>{});
   }
 };
+
+template <class C, std::size_t N>
+inline std::basic_ostream<C>& operator<<(
+    std::basic_ostream<C>& os,
+    const BasicFixedString<C, N>& string) {
+  using StreamSize = decltype(os.width());
+  os.write(string.begin(), static_cast<StreamSize>(string.size()));
+  return os;
+}
 
 /** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** **
  * Symmetric relational operators

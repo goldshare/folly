@@ -104,7 +104,7 @@ TEST(DeterministicSchedule, buggyAdd) {
       }
     }
   } // for bug
-} // TEST
+}
 
 /// Test DSched support for auxiliary data and global invariants
 ///
@@ -316,7 +316,7 @@ struct AnnotatedAtomicCounter : public Base<T> {
   }
 
   /* Constructor -- calls original constructor */
-  AnnotatedAtomicCounter(int val) : Base<T>(val) {}
+  explicit AnnotatedAtomicCounter(int val) : Base<T>(val) {}
 
   /* Overloads of original member functions (as needed) */
 

@@ -21,6 +21,7 @@
 #include <folly/Memory.h>
 #include <folly/Portability.h>
 #include <folly/Unit.h>
+#include <folly/Utility.h>
 #include <exception>
 #include <stdexcept>
 #include <type_traits>
@@ -37,6 +38,11 @@ class UsingUninitializedTry : public TryException {
  public:
   UsingUninitializedTry() : TryException("Using uninitialized try") {}
 };
+
+namespace try_detail {
+[[noreturn]] void throwTryDoesNotContainException();
+[[noreturn]] void throwUsingUninitializedTry();
+} // namespace try_detail
 
 /*
  * Try<T> is a wrapper that contains either an instance of T, an exception, or
@@ -81,6 +87,11 @@ class Try {
    */
   explicit Try(T&& v) : contains_(Contains::VALUE), value_(std::move(v)) {}
 
+  template <typename... Args>
+  explicit Try(in_place_t, Args&&... args) noexcept(
+      noexcept(::new (nullptr) T(std::declval<Args&&>()...)))
+      : contains_(Contains::VALUE), value_(std::forward<Args>(args)...) {}
+
   /// Implicit conversion from Try<void> to Try<Unit>
   template <class T2 = T>
   /* implicit */
@@ -103,15 +114,8 @@ class Try {
    */
   FOLLY_DEPRECATED("use Try(exception_wrapper)")
   explicit Try(std::exception_ptr ep)
-    : contains_(Contains::EXCEPTION) {
-    try {
-      std::rethrow_exception(ep);
-    } catch (std::exception& e) {
-      e_ = exception_wrapper(std::current_exception(), e);
-    } catch (...) {
-      e_ = exception_wrapper(std::current_exception());
-    }
-  }
+      : contains_(Contains::EXCEPTION),
+        e_(exception_wrapper::from_exception_ptr(ep)) {}
 
   // Move constructor
   Try(Try<T>&& t) noexcept;
@@ -131,21 +135,28 @@ class Try {
    *
    * @returns mutable reference to the contained value
    */
-  T& value()&;
+  T& value() &;
   /*
    * Get a rvalue reference to the contained value. If the Try contains an
    * exception it will be rethrown.
    *
    * @returns rvalue reference to the contained value
    */
-  T&& value()&&;
+  T&& value() &&;
   /*
    * Get a const reference to the contained value. If the Try contains an
    * exception it will be rethrown.
    *
    * @returns const reference to the contained value
    */
-  const T& value() const&;
+  const T& value() const &;
+  /*
+   * Get a const rvalue reference to the contained value. If the Try contains an
+   * exception it will be rethrown.
+   *
+   * @returns const rvalue reference to the contained value
+   */
+  const T&& value() const &&;
 
   /*
    * If the Try contains an exception, rethrow it. Otherwise do nothing.
@@ -158,13 +169,35 @@ class Try {
    *
    * @returns const reference to the contained value
    */
-  const T& operator*() const { return value(); }
+  const T& operator*() const & {
+    return value();
+  }
   /*
    * Dereference operator. If the Try contains an exception it will be rethrown.
    *
    * @returns mutable reference to the contained value
    */
-  T& operator*() { return value(); }
+  T& operator*() & {
+    return value();
+  }
+  /*
+   * Mutable rvalue dereference operator.  If the Try contains an exception it
+   * will be rethrown.
+   *
+   * @returns rvalue reference to the contained value
+   */
+  T&& operator*() && {
+    return std::move(value());
+  }
+  /*
+   * Const rvalue dereference operator.  If the Try contains an exception it
+   * will be rethrown.
+   *
+   * @returns rvalue reference to the contained value
+   */
+  const T&& operator*() const && {
+    return std::move(value());
+  }
 
   /*
    * Const arrow operator. If the Try contains an exception it will be
@@ -197,18 +230,32 @@ class Try {
     return hasException() && e_.is_compatible_with<Ex>();
   }
 
-  exception_wrapper& exception() {
-    if (UNLIKELY(!hasException())) {
-      throw TryException("exception(): Try does not contain an exception");
+  exception_wrapper& exception() & {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
     }
     return e_;
   }
 
-  const exception_wrapper& exception() const {
-    if (UNLIKELY(!hasException())) {
-      throw TryException("exception(): Try does not contain an exception");
+  exception_wrapper&& exception() && {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
+    }
+    return std::move(e_);
+  }
+
+  const exception_wrapper& exception() const & {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
     }
     return e_;
+  }
+
+  const exception_wrapper&& exception() const && {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
+    }
+    return std::move(e_);
   }
 
   /*
@@ -328,15 +375,8 @@ class Try<void> {
    * @param ep The exception_pointer. Will be rethrown.
    */
   FOLLY_DEPRECATED("use Try(exception_wrapper)")
-  explicit Try(std::exception_ptr ep) : hasValue_(false) {
-    try {
-      std::rethrow_exception(ep);
-    } catch (const std::exception& e) {
-      e_ = exception_wrapper(std::current_exception(), e);
-    } catch (...) {
-      e_ = exception_wrapper(std::current_exception());
-    }
-  }
+  explicit Try(std::exception_ptr ep)
+      : hasValue_(false), e_(exception_wrapper::from_exception_ptr(ep)) {}
 
   // Copy assigner
   Try& operator=(const Try<void>& t) {
@@ -373,18 +413,32 @@ class Try<void> {
    *
    * @returns mutable reference to the exception contained by this Try
    */
-  exception_wrapper& exception() {
-    if (UNLIKELY(!hasException())) {
-      throw TryException("exception(): Try does not contain an exception");
+  exception_wrapper& exception() & {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
     }
     return e_;
   }
 
-  const exception_wrapper& exception() const {
-    if (UNLIKELY(!hasException())) {
-      throw TryException("exception(): Try does not contain an exception");
+  exception_wrapper&& exception() && {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
+    }
+    return std::move(e_);
+  }
+
+  const exception_wrapper& exception() const & {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
     }
     return e_;
+  }
+
+  const exception_wrapper&& exception() const && {
+    if (!hasException()) {
+      try_detail::throwTryDoesNotContainException();
+    }
+    return std::move(e_);
   }
 
   /*
@@ -468,23 +522,6 @@ class Try<void> {
 };
 
 /*
- * Extracts value from try and returns it. Throws if try contained an exception.
- *
- * @param t Try to extract value from
- *
- * @returns value contained in t
- */
-template <typename T>
-T moveFromTry(Try<T>& t);
-
-/*
- * Throws if try contained an exception.
- *
- * @param t Try to move from
- */
-void moveFromTry(Try<void>& t);
-
-/*
  * @param f a function to execute and capture the result of (value or exception)
  *
  * @returns Try holding the result of f
@@ -508,9 +545,15 @@ typename std::enable_if<
   Try<void>>::type
 makeTryWith(F&& f);
 
-template <typename... Ts>
-std::tuple<Ts...> unwrapTryTuple(std::tuple<folly::Try<Ts>...>&& ts);
+/**
+ * Tuple<Try<Type>...> -> std::tuple<Type...>
+ *
+ * Unwraps a tuple-like type containing a sequence of Try<Type> instances to
+ * std::tuple<Type>
+ */
+template <typename Tuple>
+auto unwrapTryTuple(Tuple&&);
 
-} // folly
+} // namespace folly
 
 #include <folly/Try-inl.h>

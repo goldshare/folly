@@ -17,7 +17,7 @@
 #pragma once
 
 #include <chrono>
-#include <stdint.h>
+#include <cstdint>
 
 #include <folly/Function.h>
 
@@ -103,4 +103,4 @@ class TimeoutManager {
   std::unique_ptr<CobTimeouts> cobTimeouts_;
 };
 
-} // folly
+} // namespace folly

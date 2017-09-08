@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <folly/Conv.h>
+#include <folly/Format.h>
 #include <folly/IPAddress.h>
 
 #include <glog/logging.h>
@@ -30,11 +30,8 @@ BENCHMARK(ipv4_to_string_inet_ntop, iters) {
   char outputString[INET_ADDRSTRLEN] = {0};
 
   while (iters--) {
-    const char* val = inet_ntop(
-      AF_INET,
-      &ip,
-      outputString,
-      sizeof(outputString));
+    const char* val =
+        inet_ntop(AF_INET, &ip, outputString, sizeof(outputString));
   }
 }
 
@@ -50,7 +47,7 @@ BENCHMARK_DRAW_LINE()
 BENCHMARK(ipv4_to_fully_qualified_port, iters) {
   IPAddressV4 ip("255.255.255.255");
   while (iters--) {
-    string outputString = to<std::string>(ip.toFullyQualified(), ':', 65535);
+    string outputString = folly::sformat("{}:{}", ip.toFullyQualified(), 65535);
     folly::doNotOptimizeAway(outputString);
     folly::doNotOptimizeAway(outputString.data());
   }
@@ -78,11 +75,8 @@ BENCHMARK(ipv6_to_string_inet_ntop, iters) {
   bool checkResult = (iters == 1);
 
   while (iters--) {
-    const char* val = inet_ntop(
-      AF_INET6,
-      &ip,
-      outputString,
-      sizeof(outputString));
+    const char* val =
+        inet_ntop(AF_INET6, &ip, outputString, sizeof(outputString));
   }
 }
 
@@ -99,7 +93,7 @@ BENCHMARK_DRAW_LINE()
 BENCHMARK(ipv6_to_fully_qualified_port, iters) {
   IPAddressV6 ip("F1E0:0ACE:FB94:7ADF:22E8:6DE6:9672:3725");
   while (iters--) {
-    string outputString = to<std::string>(ip.toFullyQualified(), ':', 65535);
+    string outputString = folly::sformat("{}:{}", ip.toFullyQualified(), 65535);
     folly::doNotOptimizeAway(outputString);
     folly::doNotOptimizeAway(outputString.data());
   }
@@ -135,7 +129,7 @@ BENCHMARK_RELATIVE(ipv6_append_to_fully_qualified_port, iters) {
 // ipv6_append_to_fully_qualified_port              178.73%    84.35ns   11.86M
 // ============================================================================
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   runBenchmarks();
   return 0;

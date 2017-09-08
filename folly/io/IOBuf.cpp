@@ -20,18 +20,18 @@
 
 #include <folly/io/IOBuf.h>
 
+#include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <stdexcept>
+
 #include <folly/Conv.h>
 #include <folly/Likely.h>
 #include <folly/Malloc.h>
 #include <folly/Memory.h>
 #include <folly/ScopeGuard.h>
-#include <folly/SpookyHashV2.h>
+#include <folly/hash/SpookyHashV2.h>
 #include <folly/io/Cursor.h>
-
-#include <stdexcept>
-#include <assert.h>
-#include <stdint.h>
-#include <stdlib.h>
 
 using std::unique_ptr;
 
@@ -79,14 +79,12 @@ void takeOwnershipError(bool freeOnError, void* buf,
   }
 }
 
-} // unnamed namespace
+} // namespace
 
 namespace folly {
 
 struct IOBuf::HeapPrefix {
-  HeapPrefix(uint16_t flg)
-    : magic(kHeapMagic),
-      flags(flg) {}
+  explicit HeapPrefix(uint16_t flg) : magic(kHeapMagic), flags(flg) {}
   ~HeapPrefix() {
     // Reset magic to 0 on destruction.  This is solely for debugging purposes
     // to help catch bugs where someone tries to use HeapStorage after it has
@@ -114,7 +112,7 @@ struct IOBuf::HeapFullStorage {
 
   HeapStorage hs;
   SharedInfo shared;
-  std::max_align_t align;
+  folly::max_align_t align;
 };
 
 IOBuf::SharedInfo::SharedInfo()
@@ -1050,4 +1048,4 @@ bool IOBufEqual::operator()(const IOBuf& a, const IOBuf& b) const {
   }
 }
 
-} // folly
+} // namespace folly

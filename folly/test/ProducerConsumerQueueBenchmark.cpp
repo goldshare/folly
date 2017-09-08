@@ -16,17 +16,19 @@
 
 // @author: Bert Maher <bertrand@fb.com>
 
-#include <thread>
+#include <folly/ProducerConsumerQueue.h>
+
+#include <cstdio>
 #include <iostream>
-#include <stdio.h>
-#include <pthread.h>
+#include <thread>
+
+#include <glog/logging.h>
 
 #include <folly/Benchmark.h>
-#include <folly/ProducerConsumerQueue.h>
 #include <folly/portability/GFlags.h>
+#include <folly/portability/PThread.h>
 #include <folly/stats/Histogram.h>
 #include <folly/stats/Histogram-defs.h>
-#include <glog/logging.h>
 
 namespace {
 
@@ -38,7 +40,7 @@ typedef ProducerConsumerQueue<ThroughputType> ThroughputQueueType;
 typedef unsigned long LatencyType;
 typedef ProducerConsumerQueue<LatencyType> LatencyQueueType;
 
-template<class QueueType>
+template <class QueueType>
 struct ThroughputTest {
   explicit ThroughputTest(size_t size, int iters, int cpu0, int cpu1)
   : queue_(size),
@@ -84,7 +86,7 @@ struct ThroughputTest {
   int cpu1_;
 };
 
-template<class QueueType>
+template <class QueueType>
 struct LatencyTest {
   explicit LatencyTest(size_t size, int iters, int cpu0, int cpu1)
   : queue_(size),

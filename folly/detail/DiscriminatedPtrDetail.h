@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 namespace folly {
 namespace dptr_detail {
@@ -164,5 +164,5 @@ using ApplyConstVisitor = ApplyConstVisitor1<
     typename ConstVisitorResult<V, Types...>::type,
     Types...>;
 
-}  // namespace dptr_detail
-}  // namespace folly
+} // namespace dptr_detail
+} // namespace folly

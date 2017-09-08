@@ -21,7 +21,7 @@
  * @author Jordan DeLong <delong.j@fb.com>
  */
 
-#include <cinttypes>
+#include <cstdint>
 
 #include <folly/portability/Asm.h>
 #include <folly/portability/Time.h>
@@ -41,7 +41,7 @@ namespace detail {
 
     uint32_t spinCount;
 
-  public:
+   public:
     Sleeper() : spinCount(0) {}
 
     void wait() {

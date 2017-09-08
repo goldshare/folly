@@ -224,7 +224,7 @@ void expectPrintable(StringPiece s) {
     EXPECT_GE(127, c);
   }
 }
-}  // namespace
+} // namespace
 
 TEST(Escape, uriEscapeAllCombinations) {
   char c[3];
@@ -252,7 +252,7 @@ bool isHex(int v) {
           (v >= 'A' && v <= 'F') ||
           (v >= 'a' && v <= 'f'));
 }
-}  // namespace
+} // namespace
 
 TEST(Escape, uriUnescapePercentDecoding) {
   char c[4] = {'%', '\0', '\0', '\0'};
@@ -283,7 +283,7 @@ double pow2(int exponent) {
   return double(int64_t(1) << exponent);
 }
 
-}  // namespace
+} // namespace
 struct PrettyTestCase{
   std::string prettyString;
   double realValue;
@@ -420,7 +420,7 @@ TEST(PrettyToDouble, Basic) {
     try{
       recoveredX = prettyToDouble(testString, formatType);
     } catch (const std::range_error& ex) {
-      EXPECT_TRUE(false) << testCase.prettyString << " -> " << ex.what();
+      ADD_FAILURE() << testCase.prettyString << " -> " << ex.what();
     }
     double relativeError = fabs(x) < 1e-5 ? (x-recoveredX) :
                                             (x - recoveredX) / x;
@@ -438,7 +438,7 @@ TEST(PrettyToDouble, Basic) {
           recoveredX = prettyToDouble(prettyPrint(x, formatType, addSpace),
                                              formatType);
         } catch (std::range_error&) {
-          EXPECT_TRUE(false);
+          ADD_FAILURE();
         }
         double relativeError = (x - recoveredX) / x;
         EXPECT_NEAR(0, relativeError, 1e-3);
@@ -493,7 +493,7 @@ TEST(System, errnoStr) {
 
 namespace {
 
-template<template<class,class> class VectorType>
+template <template <class, class> class VectorType>
 void splitTest() {
   VectorType<string,std::allocator<string> > parts;
 
@@ -642,7 +642,7 @@ void splitTest() {
   EXPECT_EQ(parts[3], "");
 }
 
-template<template<class,class> class VectorType>
+template <template <class, class> class VectorType>
 void piecesTest() {
   VectorType<StringPiece,std::allocator<StringPiece> > pieces;
   VectorType<StringPiece,std::allocator<StringPiece> > pieces2;
@@ -1119,7 +1119,7 @@ void testToLowerAscii(Range<const char*> src) {
   }
 }
 
-} // anon namespace
+} // namespace
 
 TEST(String, toLowerAsciiAligned) {
   static const size_t kSize = 256;

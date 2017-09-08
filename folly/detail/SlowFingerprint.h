@@ -17,8 +17,8 @@
 #pragma once
 
 #include <folly/Fingerprint.h>
-#include <folly/detail/FingerprintPolynomial.h>
 #include <folly/Range.h>
+#include <folly/detail/FingerprintPolynomial.h>
 
 namespace folly {
 namespace detail {
@@ -85,5 +85,5 @@ class SlowFingerprint {
   FingerprintPolynomial<BITS-1> fp_;
 };
 
-}  // namespace detail
-}  // namespace folly
+} // namespace detail
+} // namespace folly

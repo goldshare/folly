@@ -17,19 +17,20 @@
 #include <folly/experimental/symbolizer/test/SignalHandlerTest.h>
 #include <folly/experimental/symbolizer/SignalHandler.h>
 
+#include <folly/CPortability.h>
 #include <folly/FileUtil.h>
 #include <folly/Range.h>
-#include <folly/CPortability.h>
 #include <folly/portability/GTest.h>
 
-namespace folly { namespace symbolizer { namespace test {
+namespace folly {
+namespace symbolizer {
+namespace test {
 
 namespace {
 
 void print(StringPiece sp) {
   writeFull(STDERR_FILENO, sp.data(), sp.size());
 }
-
 
 void callback1() {
   print("Callback1\n");
@@ -39,7 +40,7 @@ void callback2() {
   print("Callback2\n");
 }
 
-}  // namespace
+} // namespace
 
 TEST(SignalHandler, Simple) {
   addFatalSignalCallback(callback1);
@@ -73,9 +74,9 @@ TEST(SignalHandler, Simple) {
       "Callback2\n");
 #endif
 }
-
-
-}}}  // namespaces
+} // namespace test
+} // namespace symbolizer
+} // namespace folly
 
 // Can't use initFacebookLight since that would install its own signal handlers
 // Can't use initFacebookNoSignals since we cannot depend on common

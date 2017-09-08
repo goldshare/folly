@@ -16,15 +16,15 @@
 
 #pragma once
 
-#include <folly/io/IOBuf.h>
-#include <folly/ScopeGuard.h>
-#include <folly/io/async/AsyncSocketException.h>
-#include <folly/io/async/AsyncSocketBase.h>
-#include <folly/io/async/EventHandler.h>
-#include <folly/io/async/EventBase.h>
-#include <folly/SocketAddress.h>
-
 #include <memory>
+
+#include <folly/ScopeGuard.h>
+#include <folly/SocketAddress.h>
+#include <folly/io/IOBuf.h>
+#include <folly/io/async/AsyncSocketBase.h>
+#include <folly/io/async/AsyncSocketException.h>
+#include <folly/io/async/EventBase.h>
+#include <folly/io/async/EventHandler.h>
 
 namespace folly {
 
@@ -158,6 +158,18 @@ class AsyncUDPSocket : public EventHandler {
     reuseAddr_ = reuseAddr;
   }
 
+  EventBase* getEventBase() const {
+    return eventBase_;
+  }
+
+ protected:
+  virtual ssize_t sendmsg(int socket, const struct msghdr* message, int flags) {
+    return ::sendmsg(socket, message, flags);
+  }
+
+  // Non-null only when we are reading
+  ReadCallback* readCallback_;
+
  private:
   AsyncUDPSocket(const AsyncUDPSocket&) = delete;
   AsyncUDPSocket& operator=(const AsyncUDPSocket&) = delete;
@@ -177,11 +189,8 @@ class AsyncUDPSocket : public EventHandler {
   // Temp space to receive client address
   folly::SocketAddress clientAddress_;
 
-  // Non-null only when we are reading
-  ReadCallback* readCallback_;
-
   bool reuseAddr_{true};
   bool reusePort_{false};
 };
 
-} // Namespace
+} // namespace folly

@@ -17,10 +17,10 @@
 // amazing what things can go wrong if you include things in an unexpected
 // order.
 #include <folly/Try.h>
-#include <folly/futures/Promise.h>
 #include <folly/futures/Future.h>
+#include <folly/futures/Promise.h>
 #include <folly/portability/GTest.h>
 
 TEST(Basic, compiles) {
-  EXPECT_TRUE(true);
+  SUCCEED();
 }

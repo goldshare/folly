@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <folly/futures/Promise.h>
 #include <folly/Portability.h>
+#include <folly/futures/Promise.h>
 
 namespace folly {
 
@@ -34,7 +34,7 @@ namespace folly {
  */
 template <class T>
 class SharedPromise {
-public:
+ public:
   SharedPromise() = default;
   ~SharedPromise() = default;
 
@@ -107,7 +107,7 @@ public:
 
   bool isFulfilled();
 
-private:
+ private:
   std::mutex mutex_;
   size_t size_{0};
   bool hasValue_{false};

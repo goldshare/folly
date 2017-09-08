@@ -17,8 +17,8 @@
 #pragma once
 
 #include <folly/Baton.h>
-#include <folly/test/DeterministicSchedule.h>
 #include <folly/portability/GTest.h>
+#include <folly/test/DeterministicSchedule.h>
 
 namespace folly {
 namespace test {
@@ -167,5 +167,5 @@ void run_multi_producer_tests() {
   DSched::join(cons);
 }
 
-} // namespace test {
-} // namespace folly {
+} // namespace test
+} // namespace folly

@@ -35,7 +35,7 @@ namespace folly {
  * ProducerConsumerQueue is a one producer and one consumer queue
  * without locks.
  */
-template<class T>
+template <class T>
 struct ProducerConsumerQueue {
   typedef T value_type;
 
@@ -77,7 +77,7 @@ struct ProducerConsumerQueue {
     std::free(records_);
   }
 
-  template<class ...Args>
+  template <class... Args>
   bool write(Args&&... recordArgs) {
     auto const currentWrite = writeIndex_.load(std::memory_order_relaxed);
     auto nextRecord = currentWrite + 1;
@@ -167,15 +167,15 @@ struct ProducerConsumerQueue {
     return ret;
   }
 
-private:
- char pad0_[CacheLocality::kFalseSharingRange];
- const uint32_t size_;
- T* const records_;
+ private:
+  char pad0_[CacheLocality::kFalseSharingRange];
+  const uint32_t size_;
+  T* const records_;
 
- FOLLY_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned int> readIndex_;
- FOLLY_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned int> writeIndex_;
+  FOLLY_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned int> readIndex_;
+  FOLLY_ALIGN_TO_AVOID_FALSE_SHARING std::atomic<unsigned int> writeIndex_;
 
- char pad1_[CacheLocality::kFalseSharingRange - sizeof(writeIndex_)];
+  char pad1_[CacheLocality::kFalseSharingRange - sizeof(writeIndex_)];
 };
 
 }

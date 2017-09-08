@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <chrono>
+
 #include <folly/AtomicStruct.h>
 #include <folly/Hash.h>
 #include <folly/ThreadId.h>
@@ -28,7 +29,7 @@ namespace folly {
 
 // gcc 4.7 doesn't do std::is_trivial correctly, override so we can use
 // AtomicStruct<duration>
-template<>
+template <>
 struct IsTriviallyCopyable<std::chrono::steady_clock::duration>
   : std::true_type {};
 
@@ -109,14 +110,15 @@ struct MemoryIdler {
   /// (1 + timeoutVariationFraction), to smooth out the behavior in a
   /// system with bursty requests.  The default is to wait up to 50%
   /// extra, so on average 25% extra
-  template <template <typename> class Atom,
-            typename Clock = std::chrono::steady_clock>
+  template <
+      template <typename> class Atom,
+      typename Clock = std::chrono::steady_clock>
   static bool futexWait(
       Futex<Atom>& fut,
       uint32_t expected,
       uint32_t waitMask = -1,
-      typename Clock::duration idleTimeout
-          = defaultIdleTimeout.load(std::memory_order_acquire),
+      typename Clock::duration idleTimeout =
+          defaultIdleTimeout.load(std::memory_order_acquire),
       size_t stackToRetain = kDefaultStackToRetain,
       float timeoutVariationFrac = 0.5) {
 

@@ -19,6 +19,7 @@
 #include <atomic>
 #include <mutex>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include <folly/Executor.h>
@@ -27,12 +28,16 @@
 #include <folly/Optional.h>
 #include <folly/ScopeGuard.h>
 #include <folly/Try.h>
+#include <folly/Utility.h>
 #include <folly/futures/FutureException.h>
 #include <folly/futures/detail/FSM.h>
+#include <folly/portability/BitsFunctexcept.h>
 
 #include <folly/io/async/Request.h>
 
-namespace folly { namespace detail {
+namespace folly {
+namespace futures {
+namespace detail {
 
 /*
         OnlyCallback
@@ -72,7 +77,7 @@ enum class State : uint8_t {
 /// first blush, but it's the same principle. In general, as long as the user
 /// doesn't access a Future or Promise object from more than one thread at a
 /// time there won't be any problems.
-template<typename T>
+template <typename T>
 class Core final {
   static_assert(!std::is_void<T>::value,
                 "void futures are not supported. Use Unit instead.");
@@ -86,6 +91,13 @@ class Core final {
     : result_(std::move(t)),
       fsm_(State::OnlyResult),
       attached_(1) {}
+
+  template <typename... Args>
+  explicit Core(in_place_t, Args&&... args) noexcept(
+      std::is_nothrow_constructible<T, Args&&...>::value)
+      : result_(in_place, in_place, std::forward<Args>(args)...),
+        fsm_(State::OnlyResult),
+        attached_(1) {}
 
   ~Core() {
     DCHECK(attached_ == 0);
@@ -123,7 +135,7 @@ class Core final {
     if (ready()) {
       return *result_;
     } else {
-      throw FutureNotReady();
+      throwFutureNotReady();
     }
   }
 
@@ -149,7 +161,7 @@ class Core final {
       case State::OnlyCallback:
       case State::Armed:
       case State::Done:
-        throw std::logic_error("setCallback called twice");
+        std::__throw_logic_error("setCallback called twice");
     FSM_END
 
     // we could always call this, it is an optimization to only call it when
@@ -176,7 +188,7 @@ class Core final {
       case State::OnlyResult:
       case State::Armed:
       case State::Done:
-        throw std::logic_error("setResult called twice");
+        std::__throw_logic_error("setResult called twice");
     FSM_END
 
     if (transitionToArmed) {
@@ -325,7 +337,8 @@ class Core final {
 
   void doCallback() {
     Executor* x = executor_;
-    int8_t priority;
+    // initialize, solely to appease clang's -Wconditional-uninitialized
+    int8_t priority = 0;
     if (x) {
       if (!executorLock_.try_lock()) {
         executorLock_.lock();
@@ -426,8 +439,11 @@ void collectVariadicHelper(const std::shared_ptr<T<Ts...>>& /* ctx */) {
   // base case
 }
 
-template <template <typename ...> class T, typename... Ts,
-          typename THead, typename... TTail>
+template <
+    template <typename...> class T,
+    typename... Ts,
+    typename THead,
+    typename... TTail>
 void collectVariadicHelper(const std::shared_ptr<T<Ts...>>& ctx,
                            THead&& head, TTail&&... tail) {
   using ValueType = typename std::decay<THead>::type::value_type;
@@ -440,4 +456,6 @@ void collectVariadicHelper(const std::shared_ptr<T<Ts...>>& ctx,
   collectVariadicHelper(ctx, std::forward<TTail>(tail)...);
 }
 
-}} // folly::detail
+} // namespace detail
+} // namespace futures
+} // namespace folly

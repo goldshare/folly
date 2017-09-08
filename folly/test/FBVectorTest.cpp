@@ -17,17 +17,19 @@
 //
 // Author: andrei.alexandrescu@fb.com
 
-#include <folly/Foreach.h>
-#include <folly/Traits.h>
-#include <folly/Random.h>
-#include <folly/FBString.h>
 #include <folly/FBVector.h>
-#include <folly/portability/GTest.h>
 
 #include <list>
 #include <map>
 #include <memory>
+
 #include <boost/random.hpp>
+
+#include <folly/FBString.h>
+#include <folly/Foreach.h>
+#include <folly/Random.h>
+#include <folly/Traits.h>
+#include <folly/portability/GTest.h>
 
 using namespace std;
 using namespace folly;
@@ -60,9 +62,9 @@ void Num2String(String& str, Integral /* n */) {
   str.resize(strlen(str.c_str()));
 }
 
-template<class T> T randomObject();
+template <class T> T randomObject();
 
-template<> int randomObject<int>() {
+template <> int randomObject<int>() {
   return random(0, 1024);
 }
 }

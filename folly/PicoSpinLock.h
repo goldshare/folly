@@ -42,15 +42,16 @@
 #include <atomic>
 #include <cinttypes>
 #include <cstdlib>
-#include <folly/Portability.h>
 #include <mutex>
 #include <type_traits>
 
-#include <folly/detail/Sleeper.h>
 #include <glog/logging.h>
 
-#if !FOLLY_X64 && !FOLLY_A64 && !FOLLY_PPC64
-# error "PicoSpinLock.h is currently x64, aarch64 and ppc64 only."
+#include <folly/Portability.h>
+#include <folly/detail/Sleeper.h>
+
+#if !FOLLY_X64 && !FOLLY_AARCH64 && !FOLLY_PPC64
+#error "PicoSpinLock.h is currently x64, aarch64 and ppc64 only."
 #endif
 
 namespace folly {
@@ -68,7 +69,7 @@ namespace folly {
  * have a real constructor because we want this to be a POD type so we
  * can put it into packed structs.
  */
-template<class IntType, int Bit = sizeof(IntType) * 8 - 1>
+template <class IntType, int Bit = sizeof(IntType) * 8 - 1>
 struct PicoSpinLock {
   // Internally we deal with the unsigned version of the type.
   typedef typename std::make_unsigned<IntType>::type UIntType;
@@ -170,7 +171,7 @@ struct PicoSpinLock {
     }
 
 #undef FB_DOBTS
-#elif FOLLY_A64
+#elif FOLLY_AARCH64
     ret =
         !(__atomic_fetch_or(&lock_, kLockBitMask_, __ATOMIC_SEQ_CST) &
           kLockBitMask_);
@@ -253,7 +254,7 @@ struct PicoSpinLock {
     }
 
 #undef FB_DOBTR
-#elif FOLLY_A64
+#elif FOLLY_AARCH64
     __atomic_fetch_and(&lock_, ~kLockBitMask_, __ATOMIC_SEQ_CST);
 #elif FOLLY_PPC64
 #define FB_DOBTR(size)                                 \

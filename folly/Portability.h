@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include <cstddef>
+#include <type_traits>
 
 #include <folly/portability/Config.h>
 
@@ -31,7 +32,74 @@ constexpr bool kHasUnalignedAccess = true;
 #else
 constexpr bool kHasUnalignedAccess = false;
 #endif
-}
+
+namespace portability_detail {
+
+template <typename I, I A, I B>
+using integral_max = std::integral_constant<I, (A < B) ? B : A>;
+
+template <typename I, I A, I... Bs>
+struct integral_sequence_max
+    : integral_max<I, A, integral_sequence_max<I, Bs...>::value> {};
+
+template <typename I, I A>
+struct integral_sequence_max<I, A> : std::integral_constant<I, A> {};
+
+template <typename... Ts>
+using max_alignment = integral_sequence_max<size_t, alignof(Ts)...>;
+
+using max_basic_alignment = max_alignment<
+    std::max_align_t,
+    long double,
+    double,
+    float,
+    long long int,
+    long int,
+    int,
+    short int,
+    bool,
+    char,
+    char16_t,
+    char32_t,
+    wchar_t,
+    std::nullptr_t>;
+} // namespace detail
+
+constexpr size_t max_align_v = portability_detail::max_basic_alignment::value;
+
+// max_align_t is a type which is aligned at least as strictly as the
+// most-aligned basic type (see the specification of std::max_align_t). This
+// implementation exists because 32-bit iOS platforms have a broken
+// std::max_align_t (see below).
+//
+// You should refer to this as `::folly::max_align_t` in portable code, even if
+// you have `using namespace folly;` because C11 defines a global namespace
+// `max_align_t` type.
+//
+// To be certain, we consider every non-void fundamental type specified by the
+// standard. On most platforms `long double` would be enough, but iOS 32-bit
+// has an 8-byte aligned `double` and `long long int` and a 4-byte aligned
+// `long double`.
+//
+// So far we've covered locals and other non-allocated storage, but we also need
+// confidence that allocated storage from `malloc`, `new`, etc will also be
+// suitable for objects with this alignment reuirement.
+//
+// Apple document that their implementation of malloc will issue 16-byte
+// granularity chunks for small allocations (large allocations are page-size
+// granularity and page-aligned). We think that allocated storage will be
+// suitable for these objects based on the following assumptions:
+//
+// 1. 16-byte granularity also means 16-byte aligned.
+// 2. `new` and other allocators follow the `malloc` rules.
+//
+// We also have some anecdotal evidence: we don't see lots of misaligned-storage
+// crashes on 32-bit iOS apps that use `double`.
+//
+// Apple's allocation reference: http://bit.ly/malloc-small
+struct alignas(max_align_v) max_align_t {};
+
+} // namespace folly
 
 // compiler specific attribute translation
 // msvc should come first, so if clang is in msvc mode it gets the right defines
@@ -43,7 +111,7 @@ constexpr bool kHasUnalignedAccess = false;
 #else
 # error Cannot define FOLLY_ALIGNED on this platform
 #endif
-#define FOLLY_ALIGNED_MAX FOLLY_ALIGNED(alignof(std::max_align_t))
+#define FOLLY_ALIGNED_MAX FOLLY_ALIGNED(::folly::max_align_v)
 
 // NOTE: this will only do checking in msvc with versions that support /analyze
 #if _MSC_VER
@@ -52,7 +120,7 @@ constexpr bool kHasUnalignedAccess = false;
 # endif
 /* nolint */
 # define _USE_ATTRIBUTES_FOR_SAL 1
-# include <sal.h>
+# include <sal.h> // @manual
 # define FOLLY_PRINTF_FORMAT _Printf_format_string_
 # define FOLLY_PRINTF_FORMAT_ATTR(format_param, dots_param) /**/
 #else
@@ -101,9 +169,9 @@ constexpr bool kHasUnalignedAccess = false;
 #endif
 
 #if defined(__aarch64__)
-# define FOLLY_A64 1
+# define FOLLY_AARCH64 1
 #else
-# define FOLLY_A64 0
+# define FOLLY_AARCH64 0
 #endif
 
 #if defined (__powerpc64__)
@@ -114,7 +182,7 @@ constexpr bool kHasUnalignedAccess = false;
 
 namespace folly {
 constexpr bool kIsArchAmd64 = FOLLY_X64 == 1;
-constexpr bool kIsArchAArch64 = FOLLY_A64 == 1;
+constexpr bool kIsArchAArch64 = FOLLY_AARCH64 == 1;
 constexpr bool kIsArchPPC64 = FOLLY_PPC64 == 1;
 }
 
@@ -171,31 +239,12 @@ constexpr bool kIsSanitizeThread = false;
 # define FOLLY_MSVC_DISABLE_WARNING(warningNumber)
 #endif
 
-#ifdef HAVE_SHADOW_LOCAL_WARNINGS
+#ifdef FOLLY_HAVE_SHADOW_LOCAL_WARNINGS
 #define FOLLY_GCC_DISABLE_NEW_SHADOW_WARNINGS        \
   FOLLY_GCC_DISABLE_WARNING("-Wshadow-compatible-local") \
   FOLLY_GCC_DISABLE_WARNING("-Wshadow-local")
 #else
 #define FOLLY_GCC_DISABLE_NEW_SHADOW_WARNINGS /* empty */
-#endif
-
-#if defined(__GNUC__) && !defined(__APPLE__) && !__GNUC_PREREQ(4,9)
-// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=56019
-// gcc 4.8.x incorrectly placed max_align_t in the root namespace
-// Alias it into std (where it's found in 4.9 and later)
-namespace std { typedef ::max_align_t max_align_t; }
-#endif
-
-// portable version check for clang
-#ifndef __CLANG_PREREQ
-# if defined __clang__ && defined __clang_major__ && defined __clang_minor__
-/* nolint */
-#  define __CLANG_PREREQ(maj, min) \
-    ((__clang_major__ << 16) + __clang_minor__ >= ((maj) << 16) + (min))
-# else
-/* nolint */
-#  define __CLANG_PREREQ(maj, min) 0
-# endif
 #endif
 
 /* Platform specific TLS support
@@ -220,7 +269,7 @@ namespace std { typedef ::max_align_t max_align_t; }
 // the 'std' namespace; the latter uses inline namespaces. Wrap this decision
 // up in a macro to make forward-declarations easier.
 #if FOLLY_USE_LIBCPP
-#include <__config>
+#include <__config> // @manual
 #define FOLLY_NAMESPACE_STD_BEGIN     _LIBCPP_BEGIN_NAMESPACE_STD
 #define FOLLY_NAMESPACE_STD_END       _LIBCPP_END_NAMESPACE_STD
 #else
@@ -313,12 +362,12 @@ constexpr auto kIsBigEndian = !kIsLittleEndian;
 namespace FOLLY_GFLAGS_NAMESPACE { }
 namespace gflags {
 using namespace FOLLY_GFLAGS_NAMESPACE;
-}  // namespace gflags
+} // namespace gflags
 #endif
 
 // for TARGET_OS_IPHONE
 #ifdef __APPLE__
-#include <TargetConditionals.h>
+#include <TargetConditionals.h> // @manual
 #endif
 
 // RTTI may not be enabled for this compilation unit.
@@ -358,3 +407,21 @@ constexpr auto kIsWindows = false;
 constexpr auto kMscVer = 0;
 #endif
 }
+
+// Define FOLLY_USE_CPP14_CONSTEXPR to be true if the compiler's C++14
+// constexpr support is "good enough".
+#ifndef FOLLY_USE_CPP14_CONSTEXPR
+#if defined(__clang__)
+#define FOLLY_USE_CPP14_CONSTEXPR __cplusplus >= 201300L
+#elif defined(__GNUC__)
+#define FOLLY_USE_CPP14_CONSTEXPR __cplusplus >= 201304L
+#else
+#define FOLLY_USE_CPP14_CONSTEXPR 0 // MSVC?
+#endif
+#endif
+
+#if FOLLY_USE_CPP14_CONSTEXPR
+#define FOLLY_CPP14_CONSTEXPR constexpr
+#else
+#define FOLLY_CPP14_CONSTEXPR inline
+#endif

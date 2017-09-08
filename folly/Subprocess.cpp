@@ -25,8 +25,8 @@
 #endif
 #include <fcntl.h>
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <system_error>
 
 #include <boost/container/flat_set.hpp>
@@ -151,7 +151,7 @@ void checkStatus(ProcessReturnCode returnCode) {
   }
 }
 
-}  // namespace
+} // namespace
 
 Subprocess::Options& Subprocess::Options::fd(int fd, int action) {
   if (action == Subprocess::PIPE) {
@@ -215,7 +215,7 @@ struct ChildErrorInfo {
   _exit(errCode);
 }
 
-}  // namespace
+} // namespace
 
 void Subprocess::setAllNonBlocking() {
   for (auto& p : pipes_) {
@@ -670,7 +670,7 @@ bool discardRead(int fd) {
   }
 }
 
-}  // namespace
+} // namespace
 
 std::pair<std::string, std::string> Subprocess::communicate(
     StringPiece input) {
@@ -858,6 +858,6 @@ class Initializer {
 
 Initializer initializer;
 
-}  // namespace
+} // namespace
 
-}  // namespace folly
+} // namespace folly

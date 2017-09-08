@@ -18,9 +18,9 @@
 
 #include <folly/Range.h>
 #include <folly/String.h>
-#include <folly/io/async/SSLContext.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/OpenSSL.h>
+#include <folly/ssl/Init.h>
 #include <folly/ssl/OpenSSLPtrTypes.h>
 
 using namespace testing;
@@ -60,7 +60,7 @@ const std::string kTestCertWithSan = folly::stripLeftMargin(R"(
 class OpenSSLCertUtilsTest : public Test {
  public:
   void SetUp() override {
-    SSLContext::initializeOpenSSL();
+    folly::ssl::init();
   }
 };
 

@@ -28,7 +28,7 @@ namespace __cxxabiv1 {
 
 struct __cxa_exception {
   std::type_info* exceptionType;
-  void (*exceptionDestructor) (void*);
+  void (*exceptionDestructor)(void*);
   std::unexpected_handler unexpectedHandler;
   std::terminate_handler terminateHandler;
   __cxa_exception* nextException;
@@ -53,4 +53,4 @@ __cxa_eh_globals* __cxa_get_globals(void) noexcept;
 __cxa_eh_globals* __cxa_get_globals_fast(void) noexcept;
 }
 
-}  // namespace __cxxabiv1
+} // namespace __cxxabiv1

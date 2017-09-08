@@ -15,20 +15,20 @@
  */
 
 #include <folly/ThreadCachedArena.h>
-#include <folly/Memory.h>
 
+#include <algorithm>
+#include <iterator>
 #include <map>
 #include <mutex>
-#include <thread>
-#include <iterator>
-#include <algorithm>
 #include <random>
+#include <thread>
 #include <unordered_map>
 
 #include <glog/logging.h>
 
-#include <folly/Range.h>
 #include <folly/Benchmark.h>
+#include <folly/Memory.h>
+#include <folly/Range.h>
 #include <folly/portability/GTest.h>
 
 using namespace folly;
@@ -89,10 +89,10 @@ void ArenaTester::merge(ArenaTester&& other) {
   other.areas_.clear();
 }
 
-}  // namespace
+} // namespace
 
 TEST(ThreadCachedArena, BlockSize) {
-  static const size_t alignment = alignof(std::max_align_t);
+  static const size_t alignment = folly::max_align_v;
   static const size_t requestedBlockSize = 64;
 
   ThreadCachedArena arena(requestedBlockSize);
@@ -241,8 +241,7 @@ BENCHMARK(bmMArena, iters) {
 
 BENCHMARK_DRAW_LINE()
 
-}  // namespace
-
+} // namespace
 
 // Benchmark                               Iters   Total t    t/iter iter/sec
 // ----------------------------------------------------------------------------

@@ -46,7 +46,7 @@ using std::vector;
 
 typedef DeterministicSchedule DSched;
 
-template <template<typename> class Atom>
+template <template <typename> class Atom>
 void run_mt_sequencer_thread(
     int numThreads,
     int numOps,
@@ -63,7 +63,7 @@ void run_mt_sequencer_thread(
   }
 }
 
-template <template<typename> class Atom>
+template <template <typename> class Atom>
 void run_mt_sequencer_test(int numThreads, int numOps, uint32_t init) {
   TurnSequencer<Atom> seq(init);
   Atom<uint32_t> spinThreshold(0);
@@ -235,7 +235,7 @@ TEST(MPMCQueue, enq_capacity_test) {
   }
 }
 
-template <template<typename> class Atom, bool Dynamic = false>
+template <template <typename> class Atom, bool Dynamic = false>
 void runTryEnqDeqThread(
     int numThreads,
     int n, /*numOps*/
@@ -262,7 +262,7 @@ void runTryEnqDeqThread(
   sum += threadSum;
 }
 
-template <template<typename> class Atom, bool Dynamic = false>
+template <template <typename> class Atom, bool Dynamic = false>
 void runTryEnqDeqTest(int numThreads, int numOps) {
   // write and read aren't linearizable, so we don't have
   // hard guarantees on their individual behavior.  We can still test
@@ -381,9 +381,10 @@ struct WriteCaller : public WriteMethodCaller<Q> {
   string methodName() override { return "write"; }
 };
 
-template <typename Q,
-          class Clock = steady_clock,
-          class Duration = typename Clock::duration>
+template <
+    typename Q,
+    class Clock = steady_clock,
+    class Duration = typename Clock::duration>
 struct TryWriteUntilCaller : public WriteMethodCaller<Q> {
   const Duration duration_;
   explicit TryWriteUntilCaller(Duration&& duration) : duration_(duration) {}
@@ -738,7 +739,7 @@ uint64_t runNeverFailTest(int numThreads, int numOps) {
   return nowMicro() - beginMicro;
 }
 
-template <template<typename> class Atom, bool Dynamic = false>
+template <template <typename> class Atom, bool Dynamic = false>
 void runMtNeverFail(std::vector<int>& nts, int n) {
   for (int nt : nts) {
     uint64_t elapsed = runNeverFailTest<Atom, Dynamic>(nt, n);
@@ -746,11 +747,6 @@ void runMtNeverFail(std::vector<int>& nts, int n) {
               << " threads";
   }
 }
-
-// All the never_fail tests are for the non-dynamic version only.
-// False positive for dynamic version. Some writeIfNotFull() and
-// tryWriteUntil() operations may fail in transient conditions related
-// to expansion.
 
 TEST(MPMCQueue, mt_never_fail) {
   std::vector<int> nts {1, 3, 100};
@@ -764,7 +760,19 @@ TEST(MPMCQueue, mt_never_fail_emulated_futex) {
   runMtNeverFail<EmulatedFutexAtomic>(nts, n);
 }
 
-template<bool Dynamic = false>
+TEST(MPMCQueue, mt_never_fail_dynamic) {
+  std::vector<int> nts{1, 3, 100};
+  int n = 100000;
+  runMtNeverFail<std::atomic, true>(nts, n);
+}
+
+TEST(MPMCQueue, mt_never_fail_emulated_futex_dynamic) {
+  std::vector<int> nts{1, 3, 100};
+  int n = 100000;
+  runMtNeverFail<EmulatedFutexAtomic, true>(nts, n);
+}
+
+template <bool Dynamic = false>
 void runMtNeverFailDeterministic(std::vector<int>& nts, int n, long seed) {
   LOG(INFO) << "using seed " << seed;
   for (int nt : nts) {
@@ -784,6 +792,13 @@ TEST(MPMCQueue, mt_never_fail_deterministic) {
   long seed = 0; // nowMicro() % 10000;
   int n = 1000;
   runMtNeverFailDeterministic(nts, n, seed);
+}
+
+TEST(MPMCQueue, mt_never_fail_deterministic_dynamic) {
+  std::vector<int> nts{3, 10};
+  long seed = 0; // nowMicro() % 10000;
+  int n = 1000;
+  runMtNeverFailDeterministic<true>(nts, n, seed);
 }
 
 template <class Clock, template <typename> class Atom, bool Dynamic>
@@ -850,6 +865,12 @@ TEST(MPMCQueue, mt_never_fail_until_system) {
   runMtNeverFailUntilSystem(nts, n);
 }
 
+TEST(MPMCQueue, mt_never_fail_until_system_dynamic) {
+  std::vector<int> nts{1, 3, 100};
+  int n = 100000;
+  runMtNeverFailUntilSystem<true>(nts, n);
+}
+
 template <bool Dynamic = false>
 void runMtNeverFailUntilSteady(std::vector<int>& nts, int n) {
   for (int nt : nts) {
@@ -864,6 +885,12 @@ TEST(MPMCQueue, mt_never_fail_until_steady) {
   std::vector<int> nts {1, 3, 100};
   int n = 100000;
   runMtNeverFailUntilSteady(nts, n);
+}
+
+TEST(MPMCQueue, mt_never_fail_until_steady_dynamic) {
+  std::vector<int> nts{1, 3, 100};
+  int n = 100000;
+  runMtNeverFailUntilSteady<true>(nts, n);
 }
 
 enum LifecycleEvent {
@@ -1212,7 +1239,7 @@ TEST(MPMCQueue, try_write_until_timeout) {
   testTimeout<false>(queue);
 }
 
-TEST(MPMCQueue, must_fail_try_write_until_dynamic) {
-  folly::MPMCQueue<int, std::atomic, true> queue(200, 1, 2);
+TEST(MPMCQueue, try_write_until_timeout_dynamic) {
+  folly::MPMCQueue<int, std::atomic, true> queue(1);
   testTimeout<true>(queue);
 }

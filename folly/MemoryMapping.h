@@ -16,10 +16,11 @@
 
 #pragma once
 
+#include <boost/noncopyable.hpp>
+#include <glog/logging.h>
+
 #include <folly/File.h>
 #include <folly/Range.h>
-#include <glog/logging.h>
-#include <boost/noncopyable.hpp>
 
 namespace folly {
 
@@ -161,7 +162,7 @@ class MemoryMapping : boost::noncopyable {
    * A bitwise cast of the mapped bytes as range of values. Only intended for
    * use with POD or in-place usable types.
    */
-  template<class T>
+  template <class T>
   Range<const T*> asRange() const {
     size_t count = data_.size() / sizeof(T);
     return Range<const T*>(static_cast<const T*>(
@@ -180,7 +181,7 @@ class MemoryMapping : boost::noncopyable {
    * A bitwise cast of the mapped bytes as range of mutable values. Only
    * intended for use with POD or in-place usable types.
    */
-  template<class T>
+  template <class T>
   Range<T*> asWritableRange() const {
     DCHECK(options_.writable);  // you'll segfault anyway...
     size_t count = data_.size() / sizeof(T);
@@ -247,4 +248,4 @@ void alignedForwardMemcpy(void* dest, const void* src, size_t size);
  */
 void mmapFileCopy(const char* src, const char* dest, mode_t mode = 0666);
 
-}  // namespace folly
+} // namespace folly

@@ -49,6 +49,10 @@ array_test_SOURCES = ArrayTest.cpp
 array_test_LDADD = libfollytestmain.la
 TESTS += array_test
 
+constexpr_math_test_SOURCES = ConstexprMathTest.cpp
+constexpr_math_test_LDADD = libfollytestmain.la
+TESTS += constexpr_math_test
+
 if RUN_ARCH_SPECIFIC_TESTS
 small_locks_test_SOURCES = SmallLocksTest.cpp
 small_locks_test_LDADD = libfollytestmain.la
@@ -161,6 +165,10 @@ synchronized_test_SOURCES = SynchronizedTest.cpp
 synchronized_test_LDADD = libfollytestmain.la
 TESTS += synchronized_test
 
+synchronized_ptr_test_SOURCES = SynchronizedPtrTest.cpp
+synchronized_ptr_test_LDADD = libfollytestmain.la
+TESTS += synchronized_ptr_test
+
 lock_traits_test_SOURCES = LockTraitsTest.cpp
 lock_traits_test_LDADD = libfollytestmain.la
 TESTS += lock_traits_test
@@ -217,11 +225,11 @@ portability_test_SOURCES = PortabilityTest.cpp
 portability_test_LDADD = libfollytestmain.la
 TESTS += portability_test
 
-spooky_hash_v1_test_SOURCES = SpookyHashV1Test.cpp
+spooky_hash_v1_test_SOURCES = ../hash/test/SpookyHashV1Test.cpp
 spooky_hash_v1_test_LDADD = libfollytestmain.la  $(top_builddir)/libfollybenchmark.la
 TESTS += spooky_hash_v1_test
 
-spooky_hash_v2_test_SOURCES = SpookyHashV2Test.cpp
+spooky_hash_v2_test_SOURCES = ../hash/test/SpookyHashV2Test.cpp
 spooky_hash_v2_test_LDADD = libfollytestmain.la  $(top_builddir)/libfollybenchmark.la
 TESTS += spooky_hash_v2_test
 
@@ -270,6 +278,7 @@ futures_test_SOURCES = \
     ../futures/test/CallbackLifetimeTest.cpp \
     ../futures/test/CollectTest.cpp \
     ../futures/test/ContextTest.cpp \
+    ../futures/test/ConversionOperatorTest.cpp \
     ../futures/test/CoreTest.cpp \
     ../futures/test/EnsureTest.cpp \
     ../futures/test/ExecutorTest.cpp \

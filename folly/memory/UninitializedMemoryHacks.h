@@ -30,7 +30,7 @@ namespace {
 // allowing the resulting methods to be inline-able.  If you think that
 // seems hacky keep reading...
 struct FollyMemoryDetailTranslationUnitTag {};
-} // anon namespace
+} // namespace
 namespace folly {
 namespace detail {
 void unsafeStringSetLargerSize(std::string& s, std::size_t n);
@@ -244,7 +244,7 @@ inline void unsafeStringSetLargerSize(std::string& s, std::size_t n) {
 }
 
 #else
-#warn "No implementation for resizeWithoutInitialization of std::string"
+#warning "No implementation for resizeWithoutInitialization of std::string"
 #endif
 
 // This machinery bridges template expansion and macro expansion

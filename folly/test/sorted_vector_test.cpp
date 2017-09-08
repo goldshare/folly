@@ -35,7 +35,7 @@ struct less_invert {
   }
 };
 
-template<class Container>
+template <class Container>
 void check_invariant(Container& c) {
   auto it = c.begin();
   auto end = c.end();
@@ -49,7 +49,7 @@ void check_invariant(Container& c) {
 }
 
 struct OneAtATimePolicy {
-  template<class Container>
+  template <class Container>
   void increase_capacity(Container& c) {
     if (c.size() == c.capacity()) {
       c.reserve(c.size() + 1);
@@ -401,6 +401,23 @@ TEST(SortedVectorTypes, TestSetBulkInsertionSortMerge) {
   EXPECT_THAT(
       extractValues(vset),
       testing::ElementsAreArray({1, 2, 4, 5, 6, 7, 8, 10}));
+}
+
+TEST(SortedVectorTypes, TestSetBulkInsertionMiddleValuesEqualDuplication) {
+  auto s = makeVectorOfWrappers<CountCopyCtor, int>({4, 6, 8});
+
+  sorted_vector_set<CountCopyCtor> vset(s.begin(), s.end());
+  check_invariant(vset);
+
+  s = makeVectorOfWrappers<CountCopyCtor, int>({8, 10, 12});
+
+  vset.insert(s.begin(), s.end());
+  check_invariant(vset);
+  EXPECT_EQ(vset.rbegin()->count_, 1);
+
+  EXPECT_THAT(
+      extractValues(vset),
+      testing::ElementsAreArray({4, 6, 8, 10, 12}));
 }
 
 TEST(SortedVectorTypes, TestSetBulkInsertionSortMergeDups) {

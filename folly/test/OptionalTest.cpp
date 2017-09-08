@@ -33,7 +33,7 @@ using std::shared_ptr;
 
 namespace folly {
 
-template<class V>
+template <class V>
 std::ostream& operator<<(std::ostream& os, const Optional<V>& v) {
   if (v) {
     os << "Optional(" << v.value() << ')';
@@ -111,7 +111,7 @@ TEST(Optional, Simple) {
 }
 
 class MoveTester {
-public:
+ public:
   /* implicit */ MoveTester(const char* s) : s_(s) {}
   MoveTester(const MoveTester&) = default;
   MoveTester(MoveTester&& other) noexcept {
@@ -124,7 +124,8 @@ public:
     other.s_ = "";
     return *this;
   }
-private:
+
+ private:
   friend bool operator==(const MoveTester& o1, const MoveTester& o2);
   std::string s_;
 };
@@ -193,6 +194,21 @@ TEST(Optional, EmptyConstruct) {
   EXPECT_FALSE(bool(test1));
   Optional<int> test2(std::move(opt));
   EXPECT_FALSE(bool(test2));
+}
+
+TEST(Optional, InPlaceConstruct) {
+  using A = std::pair<int, double>;
+  Optional<A> opt(in_place, 5, 3.2);
+  EXPECT_TRUE(bool(opt));
+  EXPECT_EQ(5, opt->first);
+}
+
+TEST(Optional, InPlaceNestedConstruct) {
+  using A = std::pair<int, double>;
+  Optional<Optional<A>> opt(in_place, in_place, 5, 3.2);
+  EXPECT_TRUE(bool(opt));
+  EXPECT_TRUE(bool(*opt));
+  EXPECT_EQ(5, (*opt)->first);
 }
 
 TEST(Optional, Unique) {
@@ -432,6 +448,39 @@ TEST(Optional, HeterogeneousComparisons) {
   EXPECT_TRUE(opt8(4) >= opt64(4));
   EXPECT_TRUE(opt8(8) >= opt64(4));
   EXPECT_TRUE(opt8(4) >= opt64());
+}
+
+TEST(Optional, NoneComparisons) {
+  using opt = Optional<int>;
+  EXPECT_TRUE(opt() == none);
+  EXPECT_TRUE(none == opt());
+  EXPECT_FALSE(opt(1) == none);
+  EXPECT_FALSE(none == opt(1));
+
+  EXPECT_FALSE(opt() != none);
+  EXPECT_FALSE(none != opt());
+  EXPECT_TRUE(opt(1) != none);
+  EXPECT_TRUE(none != opt(1));
+
+  EXPECT_FALSE(opt() < none);
+  EXPECT_FALSE(none < opt());
+  EXPECT_FALSE(opt(1) < none);
+  EXPECT_TRUE(none < opt(1));
+
+  EXPECT_FALSE(opt() > none);
+  EXPECT_FALSE(none > opt());
+  EXPECT_FALSE(none > opt(1));
+  EXPECT_TRUE(opt(1) > none);
+
+  EXPECT_TRUE(opt() <= none);
+  EXPECT_TRUE(none <= opt());
+  EXPECT_FALSE(opt(1) <= none);
+  EXPECT_TRUE(none <= opt(1));
+
+  EXPECT_TRUE(opt() >= none);
+  EXPECT_TRUE(none >= opt());
+  EXPECT_TRUE(opt(1) >= none);
+  EXPECT_FALSE(none >= opt(1));
 }
 
 TEST(Optional, Conversions) {

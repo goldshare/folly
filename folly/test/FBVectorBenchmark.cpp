@@ -17,6 +17,11 @@
 //
 // Author: andrei.alexandrescu@fb.com
 
+#include <list>
+#include <memory>
+
+#include <boost/random.hpp>
+
 #include <folly/Benchmark.h>
 #include <folly/FBString.h>
 #include <folly/FBVector.h>
@@ -25,10 +30,6 @@
 #include <folly/Traits.h>
 #include <folly/portability/GFlags.h>
 #include <folly/portability/GTest.h>
-
-#include <list>
-#include <memory>
-#include <boost/random.hpp>
 
 using namespace std;
 using namespace folly;
@@ -68,13 +69,13 @@ std::list<char> RandomList(unsigned int maxSize) {
   return lst;
 }
 
-template<class T> T randomObject();
+template <class T> T randomObject();
 
-template<> int randomObject<int>() {
+template <> int randomObject<int>() {
   return random(0, 1024);
 }
 
-template<> folly::fbstring randomObject<folly::fbstring>() {
+template <> folly::fbstring randomObject<folly::fbstring>() {
   folly::fbstring result;
   randomString(&result);
   return result;

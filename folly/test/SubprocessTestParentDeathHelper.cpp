@@ -22,9 +22,9 @@
 // will verify that the file actually gets created, which means that everything
 // worked as intended.
 
-#include <sys/types.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/types.h>
 
 #include <glog/logging.h>
 
@@ -39,7 +39,7 @@ DEFINE_bool(child, false, "");
 
 namespace {
 constexpr int kSignal = SIGUSR1;
-}  // namespace
+} // namespace
 
 void runChild(const char* file) {
   // Block SIGUSR1 so it's queued

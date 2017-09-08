@@ -46,6 +46,8 @@ namespace folly { namespace compression {
 
 static_assert(kIsLittleEndian, "EliasFanoCoding.h requires little endianness");
 
+constexpr size_t kCacheLineSize = 64;
+
 template <class Pointer>
 struct EliasFanoCompressedListBase {
   EliasFanoCompressedListBase() = default;
@@ -86,10 +88,11 @@ struct EliasFanoCompressedListBase {
 typedef EliasFanoCompressedListBase<const uint8_t*> EliasFanoCompressedList;
 typedef EliasFanoCompressedListBase<uint8_t*> MutableEliasFanoCompressedList;
 
-template <class Value,
-          class SkipValue = size_t,
-          size_t kSkipQuantum = 0,     // 0 = disabled
-          size_t kForwardQuantum = 0>  // 0 = disabled
+template <
+    class Value,
+    class SkipValue = size_t,
+    size_t kSkipQuantum = 0, // 0 = disabled
+    size_t kForwardQuantum = 0> // 0 = disabled
 struct EliasFanoEncoderV2 {
   static_assert(std::is_integral<Value>::value &&
                     std::is_unsigned<Value>::value,
@@ -216,10 +219,11 @@ struct EliasFanoEncoderV2 {
   MutableCompressedList result_;
 };
 
-template <class Value,
-          class SkipValue,
-          size_t kSkipQuantum,
-          size_t kForwardQuantum>
+template <
+    class Value,
+    class SkipValue,
+    size_t kSkipQuantum,
+    size_t kForwardQuantum>
 struct EliasFanoEncoderV2<Value,
                           SkipValue,
                           kSkipQuantum,
@@ -448,6 +452,38 @@ class UpperBitsReader : ForwardPointers<Encoder::forwardQuantum>,
     return value_;
   }
 
+  /**
+   * Prepare to skip to `value`. This is a constant-time operation that will
+   * prefetch memory required for a `skipTo(value)` call.
+   *
+   * @return position of reader
+   */
+  SizeType prepareSkipTo(ValueType v) const {
+    auto position = position_;
+
+    if (Encoder::skipQuantum > 0 && v >= value_ + Encoder::skipQuantum) {
+      auto outer = outer_;
+      const size_t steps = v / Encoder::skipQuantum;
+      const size_t dest = folly::loadUnaligned<SkipValueType>(
+          this->skipPointers_ + (steps - 1) * sizeof(SkipValueType));
+
+      position = dest - 1;
+      outer = (dest + Encoder::skipQuantum * steps) / 8;
+
+      // Prefetch up to the beginning of where we linear search. After that,
+      // hardware prefetching will outperform our own. In addition, this
+      // simplifies calculating what to prefetch as we don't have to calculate
+      // the entire destination address. Two cache lines are prefetched because
+      // this results in fewer cycles used (based on practical results) than
+      // one. However, three cache lines does not have any additional effect.
+      const auto addr = start_ + outer;
+      __builtin_prefetch(addr);
+      __builtin_prefetch(addr + kCacheLineSize);
+    }
+
+    return position;
+  }
+
   ValueType jump(size_t n) {
     if (Encoder::forwardQuantum == 0 || n <= Encoder::forwardQuantum) {
       reset();
@@ -514,7 +550,7 @@ class UpperBitsReader : ForwardPointers<Encoder::forwardQuantum>,
   ValueType value_;
 };
 
-}  // namespace detail
+} // namespace detail
 
 // If kUnchecked = true the caller must guarantee that all the
 // operations return valid elements, i.e., they would never return
@@ -607,6 +643,29 @@ class EliasFanoReader {
 
     iterateTo(value);
     return true;
+  }
+
+  /**
+   * Prepare to skip to `value` by prefetching appropriate memory in both the
+   * upper and lower bits.
+   */
+  void prepareSkipTo(ValueType value) const {
+    // Also works when value_ == kInvalidValue.
+    if (value != kInvalidValue) {
+      DCHECK_GE(value + 1, value_ + 1);
+    }
+
+    if ((!kUnchecked && value > lastValue_) || (value == value_)) {
+      return;
+    }
+
+    // Do minimal computation required to prefetch address used in
+    // `readLowerPart()`.
+    ValueType upperValue = (value >> numLowerBits_);
+    const auto upperPosition = upper_.prepareSkipTo(upperValue);
+    const auto addr = lower_ + (upperPosition * numLowerBits_ / 8);
+    __builtin_prefetch(addr);
+    __builtin_prefetch(addr + kCacheLineSize);
   }
 
   bool jump(SizeType n) {

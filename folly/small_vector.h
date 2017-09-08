@@ -23,34 +23,34 @@
 
 #pragma once
 
-#include <stdexcept>
-#include <cstdlib>
-#include <type_traits>
 #include <algorithm>
-#include <iterator>
 #include <cassert>
+#include <cstdlib>
+#include <iterator>
+#include <stdexcept>
+#include <type_traits>
 
+#include <boost/mpl/count.hpp>
+#include <boost/mpl/empty.hpp>
+#include <boost/mpl/eval_if.hpp>
+#include <boost/mpl/filter_view.hpp>
+#include <boost/mpl/front.hpp>
+#include <boost/mpl/identity.hpp>
+#include <boost/mpl/if.hpp>
+#include <boost/mpl/placeholders.hpp>
+#include <boost/mpl/size.hpp>
+#include <boost/mpl/vector.hpp>
 #include <boost/operators.hpp>
 #include <boost/type_traits.hpp>
-#include <boost/mpl/if.hpp>
-#include <boost/mpl/eval_if.hpp>
-#include <boost/mpl/vector.hpp>
-#include <boost/mpl/front.hpp>
-#include <boost/mpl/filter_view.hpp>
-#include <boost/mpl/identity.hpp>
-#include <boost/mpl/placeholders.hpp>
-#include <boost/mpl/empty.hpp>
-#include <boost/mpl/size.hpp>
-#include <boost/mpl/count.hpp>
 
 #include <folly/Assume.h>
+#include <folly/ConstexprMath.h>
 #include <folly/FormatTraits.h>
 #include <folly/Malloc.h>
 #include <folly/Portability.h>
 #include <folly/SmallLocks.h>
 #include <folly/Traits.h>
 #include <folly/portability/BitsFunctexcept.h>
-#include <folly/portability/Constexpr.h>
 #include <folly/portability/Malloc.h>
 #include <folly/portability/TypeTraits.h>
 
@@ -74,11 +74,11 @@ struct NoHeap;
 
 //////////////////////////////////////////////////////////////////////
 
-} // small_vector_policy
+} // namespace small_vector_policy
 
 //////////////////////////////////////////////////////////////////////
 
-template<class T, std::size_t M, class A, class B, class C>
+template <class T, std::size_t M, class A, class B, class C>
 class small_vector;
 
 //////////////////////////////////////////////////////////////////////
@@ -89,7 +89,7 @@ namespace detail {
    * Move a range to a range of uninitialized memory.  Assumes the
    * ranges don't overlap.
    */
-  template<class T>
+  template <class T>
   typename std::enable_if<
     !FOLLY_IS_TRIVIALLY_COPYABLE(T)
   >::type
@@ -113,7 +113,7 @@ namespace detail {
   }
 
   // Specialization for trivially copyable types.
-  template<class T>
+  template <class T>
   typename std::enable_if<
     FOLLY_IS_TRIVIALLY_COPYABLE(T)
   >::type
@@ -163,7 +163,7 @@ namespace detail {
    * std::move_backward because move_backward only works if all the
    * memory is initialized to type T already.
    */
-  template<class T>
+  template <class T>
   typename std::enable_if<
     !FOLLY_IS_TRIVIALLY_COPYABLE(T)
   >::type
@@ -202,7 +202,7 @@ namespace detail {
   // Specialization for trivially copyable types.  The call to
   // std::move_backward here will just turn into a memmove.  (TODO:
   // change to std::is_trivially_copyable when that works.)
-  template<class T>
+  template <class T>
   typename std::enable_if<
     FOLLY_IS_TRIVIALLY_COPYABLE(T)
   >::type
@@ -214,7 +214,7 @@ namespace detail {
    * Populate a region of memory using `op' to construct elements.  If
    * anything throws, undo what we did.
    */
-  template<class T, class Function>
+  template <class T, class Function>
   void populateMemForward(T* mem, std::size_t n, Function const& op) {
     std::size_t idx = 0;
     try {
@@ -230,13 +230,13 @@ namespace detail {
     }
   }
 
-  template<class SizeType, bool ShouldUseHeap>
+  template <class SizeType, bool ShouldUseHeap>
   struct IntegralSizePolicy {
     typedef SizeType InternalSizeType;
 
     IntegralSizePolicy() : size_(0) {}
 
-  protected:
+   protected:
     static constexpr std::size_t policyMaxSize() {
       return SizeType(~kExternMask);
     }
@@ -266,10 +266,10 @@ namespace detail {
       std::swap(size_, o.size_);
     }
 
-  protected:
+   protected:
     static bool const kShouldUseHeap = ShouldUseHeap;
 
-  private:
+   private:
     static SizeType const kExternMask =
       kShouldUseHeap ? SizeType(1) << (sizeof(SizeType) * 8 - 1)
                      : 0;
@@ -289,11 +289,12 @@ namespace detail {
    * Apologies for all the black magic.
    */
   namespace mpl = boost::mpl;
-  template<class Value,
-           std::size_t RequestedMaxInline,
-           class InPolicyA,
-           class InPolicyB,
-           class InPolicyC>
+  template <
+      class Value,
+      std::size_t RequestedMaxInline,
+      class InPolicyA,
+      class InPolicyB,
+      class InPolicyC>
   struct small_vector_base {
     typedef mpl::vector<InPolicyA,InPolicyB,InPolicyC> PolicyList;
 
@@ -364,11 +365,12 @@ namespace detail {
 
 //////////////////////////////////////////////////////////////////////
 FOLLY_PACK_PUSH
-template<class Value,
-         std::size_t RequestedMaxInline    = 1,
-         class PolicyA                     = void,
-         class PolicyB                     = void,
-         class PolicyC                     = void>
+template <
+    class Value,
+    std::size_t RequestedMaxInline = 1,
+    class PolicyA = void,
+    class PolicyB = void,
+    class PolicyC = void>
 class small_vector
   : public detail::small_vector_base<
       Value,RequestedMaxInline,PolicyA,PolicyB,PolicyC
@@ -399,7 +401,7 @@ class small_vector
   typedef std::reverse_iterator<iterator>       reverse_iterator;
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
-  explicit small_vector() = default;
+  small_vector() = default;
 
   small_vector(small_vector const& o) {
     auto n = o.size();
@@ -439,7 +441,7 @@ class small_vector
     doConstruct(n, [&](void* p) { new (p) value_type(t); });
   }
 
-  template<class Arg>
+  template <class Arg>
   explicit small_vector(Arg arg1, Arg arg2)  {
     // Forward using std::is_arithmetic to get to the proper
     // implementation; this disambiguates between the iterators and
@@ -626,7 +628,7 @@ class small_vector
     return this->isExtern() ? u.heap() : u.buffer();
   }
 
-  template<class ...Args>
+  template <class... Args>
   iterator emplace(const_iterator p, Args&&... args) {
     if (p == cend()) {
       emplace_back(std::forward<Args>(args)...);
@@ -747,7 +749,7 @@ class small_vector
     return begin() + offset;
   }
 
-  template<class Arg>
+  template <class Arg>
   iterator insert(const_iterator p, Arg arg1, Arg arg2) {
     // Forward using std::is_arithmetic to get to the proper
     // implementation; this disambiguates between the iterators and
@@ -780,7 +782,7 @@ class small_vector
     erase(begin(), end());
   }
 
-  template<class Arg>
+  template <class Arg>
   void assign(Arg first, Arg last) {
     clear();
     insert(end(), first, last);
@@ -824,15 +826,14 @@ class small_vector
     return (*this)[i];
   }
 
-private:
-
+ private:
   static iterator unconst(const_iterator it) {
     return const_cast<iterator>(it);
   }
 
   // The std::false_type argument is part of disambiguating the
   // iterator insert functions from integral types (see insert().)
-  template<class It>
+  template <class It>
   iterator insertImpl(iterator pos, It first, It last, std::false_type) {
     typedef typename std::iterator_traits<It>::iterator_category categ;
     if (std::is_same<categ,std::input_iterator_tag>::value) {
@@ -865,7 +866,7 @@ private:
   // The std::false_type argument came from std::is_arithmetic as part
   // of disambiguating an overload (see the comment in the
   // constructor).
-  template<class It>
+  template <class It>
   void constructImpl(It first, It last, std::false_type) {
     typedef typename std::iterator_traits<It>::iterator_category categ;
     if (std::is_same<categ,std::input_iterator_tag>::value) {
@@ -1018,7 +1019,7 @@ private:
     }
   }
 
-private:
+ private:
   struct HeapPtrWithCapacity {
     void* heap_;
     InternalSizeType capacity_;
@@ -1095,10 +1096,10 @@ private:
     value_type* heap() noexcept {
       if (kHasInlineCapacity || !detail::pointerFlagGet(pdata_.heap_)) {
         return static_cast<value_type*>(pdata_.heap_);
+      } else {
+        return static_cast<value_type*>(detail::shiftPointer(
+            detail::pointerFlagClear(pdata_.heap_), kHeapifyCapacitySize));
       }
-      return static_cast<value_type*>(
-        detail::shiftPointer(
-          detail::pointerFlagClear(pdata_.heap_), kHeapifyCapacitySize));
     }
     value_type const* heap() const noexcept {
       return const_cast<Data*>(this)->heap();
@@ -1126,7 +1127,7 @@ FOLLY_PACK_POP
 
 // Basic guarantee only, or provides the nothrow guarantee iff T has a
 // nothrow move or copy constructor.
-template<class T, std::size_t MaxInline, class A, class B, class C>
+template <class T, std::size_t MaxInline, class A, class B, class C>
 void swap(small_vector<T,MaxInline,A,B,C>& a,
           small_vector<T,MaxInline,A,B,C>& b) {
   a.swap(b);
@@ -1142,8 +1143,8 @@ struct IndexableTraits<small_vector<T, M, A, B, C>>
   : public IndexableTraitsSeq<small_vector<T, M, A, B, C>> {
 };
 
-}  // namespace detail
+} // namespace detail
 
-}  // namespace folly
+} // namespace folly
 
 FOLLY_POP_WARNING

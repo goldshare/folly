@@ -16,6 +16,7 @@
 
 #include <folly/Checksum.h>
 
+#include <boost/crc.hpp>
 
 #include <folly/Benchmark.h>
 #include <folly/Hash.h>
@@ -89,6 +90,17 @@ void testCRC32CContinuation(
   }
 }
 
+void testMatchesBoost32Type() {
+  for (auto expected : expectedResults) {
+    boost::crc_32_type result;
+    result.process_bytes(buffer + expected.offset, expected.length);
+    const uint32_t boostResult = result.checksum();
+    const uint32_t follyResult =
+        folly::crc32_type(buffer + expected.offset, expected.length);
+    EXPECT_EQ(follyResult, boostResult);
+  }
+}
+
 } // namespace
 
 TEST(Checksum, crc32c_software) {
@@ -106,6 +118,19 @@ TEST(Checksum, crc32c_hardware) {
   } else {
     LOG(WARNING) << "skipping hardware-accelerated CRC-32C tests" <<
         " (not supported on this CPU)";
+  }
+}
+
+TEST(Checksum, crc32c_hardware_eq) {
+  if (folly::detail::crc32c_hw_supported()) {
+    for (int i = 0; i < 1000; i++) {
+      auto sw = folly::detail::crc32c_sw(buffer, i, 0);
+      auto hw = folly::detail::crc32c_hw(buffer, i, 0);
+      EXPECT_EQ(sw, hw);
+    }
+  } else {
+    LOG(WARNING) << "skipping hardware-accelerated CRC-32C tests"
+                 << " (not supported on this CPU)";
   }
 }
 
@@ -167,6 +192,11 @@ TEST(Checksum, crc32_continuation) {
     LOG(WARNING) << "skipping hardware-accelerated CRC-32 tests"
                  << " (not supported on this CPU)";
   }
+}
+
+TEST(Checksum, crc32_type) {
+  // Test that crc32_type matches boost::crc_32_type
+  testMatchesBoost32Type();
 }
 
 void benchmarkHardwareCRC32C(unsigned long iters, size_t blockSize) {

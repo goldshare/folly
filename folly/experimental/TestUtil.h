@@ -18,6 +18,7 @@
 
 #include <map>
 #include <string>
+
 #include <folly/Range.h>
 #include <folly/ScopeGuard.h>
 #include <folly/experimental/io/FsUtil.h>
@@ -53,6 +54,7 @@ class TemporaryFile {
   TemporaryFile(TemporaryFile&&) = default;
   TemporaryFile& operator=(TemporaryFile&&) = default;
 
+  void close();
   int fd() const { return fd_; }
   const fs::path& path() const;
 
@@ -104,7 +106,7 @@ class TemporaryDirectory {
  * upon destruction, also changing back to the original working directory.
  */
 class ChangeToTempDir {
-public:
+ public:
   ChangeToTempDir();
   ~ChangeToTempDir();
 
@@ -114,7 +116,7 @@ public:
 
   const fs::path& path() const { return dir_.path(); }
 
-private:
+ private:
   fs::path initialPath_;
   TemporaryDirectory dir_;
 };
@@ -165,9 +167,9 @@ auto msvcSuppressAbortOnInvalidParams(Func func) -> decltype(func()) {
   )
 
 namespace detail {
-  bool hasPCREPatternMatch(StringPiece pattern, StringPiece target);
-  bool hasNoPCREPatternMatch(StringPiece pattern, StringPiece target);
-}  // namespace detail
+bool hasPCREPatternMatch(StringPiece pattern, StringPiece target);
+bool hasNoPCREPatternMatch(StringPiece pattern, StringPiece target);
+} // namespace detail
 
 /**
  * Use these patterns together with CaptureFD and EXPECT_PCRE_MATCH() to
@@ -191,9 +193,10 @@ inline std::string glogErrOrWarnPattern() { return ".*(^|\n)[EW][0-9].*"; }
  * Great for testing logging (see also glog*Pattern()).
  */
 class CaptureFD {
-private:
+ private:
   struct NoOpChunkCob { void operator()(StringPiece) {} };
-public:
+
+ public:
   using ChunkCob = std::function<void(folly::StringPiece)>;
 
   /**
@@ -222,7 +225,7 @@ public:
    */
   std::string readIncremental();
 
-private:
+ private:
   ChunkCob chunkCob_;
   TemporaryFile file_;
 
@@ -232,5 +235,5 @@ private:
   off_t readOffset_;  // for incremental reading
 };
 
-}  // namespace test
-}  // namespace folly
+} // namespace test
+} // namespace folly

@@ -256,11 +256,11 @@ struct async_timeout_wrapper:
     callback_();
   }
 
-private:
+ private:
   TCallback callback_;
 };
 
-} // namespace detail {
+} // namespace detail
 
 template <typename TCallback>
 std::unique_ptr<AsyncTimeout> AsyncTimeout::make(
@@ -286,4 +286,4 @@ std::unique_ptr<AsyncTimeout> AsyncTimeout::schedule(
   return wrapper;
 }
 
-} // folly
+} // namespace folly

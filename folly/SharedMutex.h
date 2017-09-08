@@ -236,10 +236,11 @@ struct SharedMutexToken {
   uint16_t slot_;
 };
 
-template <bool ReaderPriority,
-          typename Tag_ = void,
-          template <typename> class Atom = std::atomic,
-          bool BlockImmediately = false>
+template <
+    bool ReaderPriority,
+    typename Tag_ = void,
+    template <typename> class Atom = std::atomic,
+    bool BlockImmediately = false>
 class SharedMutexImpl {
  public:
   static constexpr bool kReaderPriority = ReaderPriority;
@@ -849,6 +850,7 @@ class SharedMutexImpl {
                             WaitContext& ctx) {
 #ifdef RUSAGE_THREAD
     struct rusage usage;
+    std::memset(&usage, 0, sizeof(usage));
     long before = -1;
 #endif
     for (uint32_t yieldCount = 0; yieldCount < kMaxSoftYieldCount;
@@ -991,7 +993,7 @@ class SharedMutexImpl {
           return;
         }
       }
-      asm_pause();
+      asm_volatile_pause();
       if (UNLIKELY(++spinCount >= kMaxSpinCount)) {
         applyDeferredReaders(state, ctx, slot);
         return;
@@ -1004,6 +1006,7 @@ class SharedMutexImpl {
 
 #ifdef RUSAGE_THREAD
     struct rusage usage;
+    std::memset(&usage, 0, sizeof(usage));
     long before = -1;
 #endif
     for (uint32_t yieldCount = 0; yieldCount < kMaxSoftYieldCount;

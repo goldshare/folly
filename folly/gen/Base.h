@@ -84,7 +84,7 @@ namespace folly {
 namespace gen {
 
 class Less {
-public:
+ public:
   template <class First, class Second>
   auto operator()(const First& first, const Second& second) const ->
   decltype(first < second) {
@@ -93,7 +93,7 @@ public:
 };
 
 class Greater {
-public:
+ public:
   template <class First, class Second>
   auto operator()(const First& first, const Second& second) const ->
   decltype(first > second) {
@@ -103,7 +103,7 @@ public:
 
 template <int n>
 class Get {
-public:
+ public:
   template <class Value>
   auto operator()(Value&& value) const ->
   decltype(std::get<n>(std::forward<Value>(value))) {
@@ -188,7 +188,7 @@ class Field {
 };
 
 class Move {
-public:
+ public:
   template <class Value>
   auto operator()(Value&& value) const ->
   decltype(std::move(std::forward<Value>(value))) {
@@ -329,6 +329,9 @@ template <class Rand>
 class Sample;
 
 class Skip;
+
+template <class Visitor>
+class Visit;
 
 template <class Selector, class Comparer = Less>
 class Order;
@@ -634,6 +637,11 @@ Filter filter(Predicate pred = Predicate()) {
   return Filter(std::move(pred));
 }
 
+template <class Visitor = Ignore, class Visit = detail::Visit<Visitor>>
+Visit visit(Visitor visitor = Visitor()) {
+  return Visit(std::move(visitor));
+}
+
 template <class Predicate, class Until = detail::Until<Predicate>>
 Until until(Predicate pred = Predicate()) {
   return Until(std::move(pred));
@@ -742,7 +750,6 @@ Composed any(Predicate pred = Predicate()) {
  *
  *   from(source) | all(pred) == from(source) | filter(negate(pred)) | isEmpty
  */
-
 template <
     class Predicate = Identity,
     class Filter = detail::Filter<Negate<Predicate>>,
@@ -814,7 +821,8 @@ template <
 UnwrapOr unwrapOr(Fallback&& fallback) {
   return UnwrapOr(std::forward<Fallback>(fallback));
 }
-} // gen
-} // folly
+
+} // namespace gen
+} // namespace folly
 
 #include <folly/gen/Base-inl.h>

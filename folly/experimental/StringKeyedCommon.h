@@ -19,6 +19,7 @@
 #pragma once
 
 #include <memory>
+
 #include <folly/Range.h>
 
 namespace folly {
@@ -41,4 +42,4 @@ void stringPieceDel(StringPiece piece, const Alloc& alloc) {
     .deallocate(const_cast<char*>(piece.data()), piece.size());
 }
 
-} // folly
+} // namespace folly

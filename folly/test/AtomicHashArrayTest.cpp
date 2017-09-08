@@ -22,8 +22,8 @@
 #include <folly/Conv.h>
 #include <folly/Hash.h>
 #include <folly/Memory.h>
-#include <folly/portability/SysMman.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/SysMman.h>
 
 using namespace std;
 using namespace folly;
@@ -83,16 +83,17 @@ class MmapAllocator {
   }
 };
 
-template<class KeyT, class ValueT>
+template <class KeyT, class ValueT>
 pair<KeyT,ValueT> createEntry(int i) {
   return pair<KeyT,ValueT>(to<KeyT>(folly::hash::jenkins_rev_mix32(i) % 1000),
                            to<ValueT>(i + 3));
 }
 
-template <class KeyT,
-          class ValueT,
-          class Allocator = std::allocator<char>,
-          class ProbeFcn = AtomicHashArrayLinearProbeFcn>
+template <
+    class KeyT,
+    class ValueT,
+    class Allocator = std::allocator<char>,
+    class ProbeFcn = AtomicHashArrayLinearProbeFcn>
 void testMap() {
   typedef AtomicHashArray<KeyT, ValueT, std::hash<KeyT>,
                           std::equal_to<KeyT>, Allocator, ProbeFcn> MyArr;
@@ -140,7 +141,9 @@ void testMap() {
   }
 }
 
-template<class KeyT, class ValueT,
+template <
+    class KeyT,
+    class ValueT,
     class Allocator = std::allocator<char>,
     class ProbeFcn = AtomicHashArrayLinearProbeFcn>
 void testNoncopyableMap() {

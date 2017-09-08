@@ -85,7 +85,7 @@ struct Printer {
     }
   }
 
-private:
+ private:
   void printKV(const std::pair<const dynamic, dynamic>& p) const {
     if (!opts_.allow_non_string_keys && !p.first.isString()) {
       throw std::runtime_error("folly::toJson: JSON object key was not a "
@@ -156,7 +156,7 @@ private:
     out_ += ']';
   }
 
-private:
+ private:
   void outdent() const {
     if (indentLevel_) {
       --*indentLevel_;
@@ -179,10 +179,10 @@ private:
     out_ += indentLevel_ ? " : " : ":";
   }
 
-private:
- std::string& out_;
- unsigned* const indentLevel_;
- serialization_opts const& opts_;
+ private:
+  std::string& out_;
+  unsigned* const indentLevel_;
+  serialization_opts const& opts_;
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -217,7 +217,7 @@ struct Input {
 
   // Parse ahead for as long as the supplied predicate is satisfied,
   // returning a range of what was skipped.
-  template<class Predicate>
+  template <class Predicate>
   StringPiece skipWhile(const Predicate& p) {
     std::size_t skipped = 0;
     for (; skipped < range_.size(); ++skipped) {
@@ -273,7 +273,7 @@ struct Input {
     storeCurrent();
   }
 
-  template<class T>
+  template <class T>
   T extract() {
     try {
       return to<T>(&range_);
@@ -319,7 +319,7 @@ struct Input {
     current_ = range_.empty() ? EOF : range_.front();
   }
 
-private:
+ private:
   StringPiece range_;
   json::serialization_opts const& opts_;
   unsigned lineNum_;

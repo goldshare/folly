@@ -21,9 +21,9 @@
 
 #include <folly/RWSpinLock.h>
 #include <folly/Range.h>
-#include <folly/SpookyHashV2.h>
 #include <folly/Synchronized.h>
 #include <folly/ThreadLocal.h>
+#include <folly/hash/SpookyHashV2.h>
 
 #include <folly/experimental/exception_tracer/ExceptionTracerLib.h>
 #include <folly/experimental/exception_tracer/StackTrace.h>
@@ -77,11 +77,12 @@ std::vector<ExceptionStats> getExceptionStatistics() {
     result.push_back(std::move(item.second));
   }
 
-  std::sort(result.begin(),
-            result.end(),
-            [](const ExceptionStats& lhs, const ExceptionStats& rhs) {
-              return lhs.count > rhs.count;
-            });
+  std::sort(
+      result.begin(),
+      result.end(),
+      [](const ExceptionStats& lhs, const ExceptionStats& rhs) {
+        return lhs.count > rhs.count;
+      });
 
   return result;
 }
@@ -133,7 +134,9 @@ void throwHandler(void*, std::type_info* exType, void (*)(void*)) noexcept {
 }
 
 struct Initializer {
-  Initializer() { registerCxaThrowCallback(throwHandler); }
+  Initializer() {
+    registerCxaThrowCallback(throwHandler);
+  }
 };
 
 Initializer initializer;

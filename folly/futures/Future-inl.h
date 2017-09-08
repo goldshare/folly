@@ -21,35 +21,42 @@
 #include <chrono>
 #include <random>
 #include <thread>
+
 #include <folly/Baton.h>
 #include <folly/Optional.h>
 #include <folly/Random.h>
-#include <folly/Traits.h>
-#include <folly/futures/detail/Core.h>
 #include <folly/futures/Timekeeper.h>
+#include <folly/futures/detail/Core.h>
 
+#ifndef FOLLY_FUTURE_USING_FIBER
 #if FOLLY_MOBILE || defined(__APPLE__)
 #define FOLLY_FUTURE_USING_FIBER 0
 #else
 #define FOLLY_FUTURE_USING_FIBER 1
 #include <folly/fibers/Baton.h>
 #endif
+#endif
 
 namespace folly {
 
 class Timekeeper;
 
+namespace futures {
 namespace detail {
 #if FOLLY_FUTURE_USING_FIBER
 typedef folly::fibers::Baton FutureBatonType;
 #else
 typedef folly::Baton<> FutureBatonType;
 #endif
-}
+} // namespace detail
+} // namespace futures
 
 namespace detail {
 std::shared_ptr<Timekeeper> getTimekeeperSingleton();
+} // namespace detail
 
+namespace futures {
+namespace detail {
 //  Guarantees that the stored functor is destructed before the stored promise
 //  may be fulfilled. Assumes the stored functor to be noexcept-destructible.
 template <typename T, typename F>
@@ -112,7 +119,7 @@ class CoreCallbackState {
   union {
     F func_;
   };
-  Promise<T> promise_{detail::EmptyConstruct{}};
+  Promise<T> promise_{Promise<T>::makeEmpty()};
 };
 
 template <typename T, typename F>
@@ -123,6 +130,12 @@ inline auto makeCoreCallbackState(Promise<T>&& p, F&& f) noexcept(
   return CoreCallbackState<T, _t<std::decay<F>>>(
       std::move(p), std::forward<F>(f));
 }
+} // namespace detail
+} // namespace futures
+
+template <class T>
+Future<T> Future<T>::makeEmpty() {
+  return Future<T>(futures::detail::EmptyConstruct{});
 }
 
 template <class T>
@@ -137,14 +150,58 @@ Future<T>& Future<T>::operator=(Future<T>&& other) noexcept {
 }
 
 template <class T>
+template <
+    class T2,
+    typename std::enable_if<
+        !std::is_same<T, typename std::decay<T2>::type>::value &&
+            std::is_constructible<T, T2&&>::value &&
+            std::is_convertible<T2&&, T>::value,
+        int>::type>
+Future<T>::Future(Future<T2>&& other)
+    : Future(std::move(other).then([](T2&& v) { return T(std::move(v)); })) {}
+
+template <class T>
+template <
+    class T2,
+    typename std::enable_if<
+        !std::is_same<T, typename std::decay<T2>::type>::value &&
+            std::is_constructible<T, T2&&>::value &&
+            !std::is_convertible<T2&&, T>::value,
+        int>::type>
+Future<T>::Future(Future<T2>&& other)
+    : Future(std::move(other).then([](T2&& v) { return T(std::move(v)); })) {}
+
+template <class T>
+template <
+    class T2,
+    typename std::enable_if<
+        !std::is_same<T, typename std::decay<T2>::type>::value &&
+            std::is_constructible<T, T2&&>::value,
+        int>::type>
+Future<T>& Future<T>::operator=(Future<T2>&& other) {
+  return operator=(
+      std::move(other).then([](T2&& v) { return T(std::move(v)); }));
+}
+
+template <class T>
 template <class T2, typename>
 Future<T>::Future(T2&& val)
-    : core_(new detail::Core<T>(Try<T>(std::forward<T2>(val)))) {}
+    : core_(new futures::detail::Core<T>(Try<T>(std::forward<T2>(val)))) {}
 
 template <class T>
 template <typename T2>
 Future<T>::Future(typename std::enable_if<std::is_same<Unit, T2>::value>::type*)
-    : core_(new detail::Core<T>(Try<T>(T()))) {}
+    : core_(new futures::detail::Core<T>(Try<T>(T()))) {}
+
+template <class T>
+template <
+    class... Args,
+    typename std::enable_if<std::is_constructible<T, Args&&...>::value, int>::
+        type>
+Future<T>::Future(in_place_t, Args&&... args)
+    : core_(
+          new futures::detail::Core<T>(in_place, std::forward<Args>(args)...)) {
+}
 
 template <class T>
 Future<T>::~Future() {
@@ -162,7 +219,7 @@ void Future<T>::detach() {
 template <class T>
 void Future<T>::throwIfInvalid() const {
   if (!core_)
-    throw NoState();
+    throwNoState();
 }
 
 template <class T>
@@ -191,7 +248,9 @@ Future<T>::unwrap() {
 template <class T>
 template <typename F, typename R, bool isTry, typename... Args>
 typename std::enable_if<!R::ReturnsFuture::value, typename R::Return>::type
-Future<T>::thenImplementation(F&& func, detail::argResult<isTry, F, Args...>) {
+Future<T>::thenImplementation(
+    F&& func,
+    futures::detail::argResult<isTry, F, Args...>) {
   static_assert(sizeof...(Args) <= 1, "Then must take zero/one argument");
   typedef typename R::ReturnsFuture::Inner B;
 
@@ -223,18 +282,18 @@ Future<T>::thenImplementation(F&& func, detail::argResult<isTry, F, Args...>) {
      persist beyond the callback, if it gets moved), and so it is an
      optimization to just make it shared from the get-go.
 
-     Two subtle but important points about this design. detail::Core has no
-     back pointers to Future or Promise, so if Future or Promise get moved
-     (and they will be moved in performant code) we don't have to do
+     Two subtle but important points about this design. futures::detail::Core
+     has no back pointers to Future or Promise, so if Future or Promise get
+     moved (and they will be moved in performant code) we don't have to do
      anything fancy. And because we store the continuation in the
-     detail::Core, not in the Future, we can execute the continuation even
-     after the Future has gone out of scope. This is an intentional design
+     futures::detail::Core, not in the Future, we can execute the continuation
+     even after the Future has gone out of scope. This is an intentional design
      decision. It is likely we will want to be able to cancel a continuation
      in some circumstances, but I think it should be explicit not implicit
      in the destruction of the Future used to create it.
      */
   setCallback_(
-      [state = detail::makeCoreCallbackState(
+      [state = futures::detail::makeCoreCallbackState(
            std::move(p), std::forward<F>(func))](Try<T> && t) mutable {
         if (!isTry && t.hasException()) {
           state.setException(std::move(t.exception()));
@@ -252,7 +311,9 @@ Future<T>::thenImplementation(F&& func, detail::argResult<isTry, F, Args...>) {
 template <class T>
 template <typename F, typename R, bool isTry, typename... Args>
 typename std::enable_if<R::ReturnsFuture::value, typename R::Return>::type
-Future<T>::thenImplementation(F&& func, detail::argResult<isTry, F, Args...>) {
+Future<T>::thenImplementation(
+    F&& func,
+    futures::detail::argResult<isTry, F, Args...>) {
   static_assert(sizeof...(Args) <= 1, "Then must take zero/one argument");
   typedef typename R::ReturnsFuture::Inner B;
 
@@ -266,7 +327,7 @@ Future<T>::thenImplementation(F&& func, detail::argResult<isTry, F, Args...>) {
   f.core_->setExecutorNoLock(getExecutor());
 
   setCallback_(
-      [state = detail::makeCoreCallbackState(
+      [state = futures::detail::makeCoreCallbackState(
            std::move(p), std::forward<F>(func))](Try<T> && t) mutable {
         if (!isTry && t.hasException()) {
           state.setException(std::move(t.exception()));
@@ -289,9 +350,9 @@ template <typename T>
 template <typename R, typename Caller, typename... Args>
   Future<typename isFuture<R>::Inner>
 Future<T>::then(R(Caller::*func)(Args...), Caller *instance) {
-  typedef typename std::remove_cv<
-    typename std::remove_reference<
-      typename detail::ArgType<Args...>::FirstArg>::type>::type FirstArg;
+  typedef typename std::remove_cv<typename std::remove_reference<
+      typename futures::detail::ArgType<Args...>::FirstArg>::type>::type
+      FirstArg;
   return then([instance, func](Try<T>&& t){
     return (instance->*func)(t.template get<isTry<FirstArg>::value, Args>()...);
   });
@@ -306,13 +367,16 @@ Future<Unit> Future<T>::then() {
 template <class T>
 template <class F>
 typename std::enable_if<
-  !detail::callableWith<F, exception_wrapper>::value &&
-  !detail::Extract<F>::ReturnsFuture::value,
-  Future<T>>::type
+    !futures::detail::callableWith<F, exception_wrapper>::value &&
+        !futures::detail::callableWith<F, exception_wrapper&>::value &&
+        !futures::detail::Extract<F>::ReturnsFuture::value,
+    Future<T>>::type
 Future<T>::onError(F&& func) {
-  typedef std::remove_reference_t<typename detail::Extract<F>::FirstArg> Exn;
+  typedef std::remove_reference_t<
+      typename futures::detail::Extract<F>::FirstArg>
+      Exn;
   static_assert(
-      std::is_same<typename detail::Extract<F>::RawReturn, T>::value,
+      std::is_same<typename futures::detail::Extract<F>::RawReturn, T>::value,
       "Return type of onError callback must be T or Future<T>");
 
   Promise<T> p;
@@ -320,7 +384,7 @@ Future<T>::onError(F&& func) {
   auto f = p.getFuture();
 
   setCallback_(
-      [state = detail::makeCoreCallbackState(
+      [state = futures::detail::makeCoreCallbackState(
            std::move(p), std::forward<F>(func))](Try<T> && t) mutable {
         if (auto e = t.template tryGetExceptionObject<Exn>()) {
           state.setTry(makeTryWith([&] { return state.invoke(*e); }));
@@ -336,20 +400,24 @@ Future<T>::onError(F&& func) {
 template <class T>
 template <class F>
 typename std::enable_if<
-  !detail::callableWith<F, exception_wrapper>::value &&
-  detail::Extract<F>::ReturnsFuture::value,
-  Future<T>>::type
+    !futures::detail::callableWith<F, exception_wrapper>::value &&
+        !futures::detail::callableWith<F, exception_wrapper&>::value &&
+        futures::detail::Extract<F>::ReturnsFuture::value,
+    Future<T>>::type
 Future<T>::onError(F&& func) {
   static_assert(
-      std::is_same<typename detail::Extract<F>::Return, Future<T>>::value,
+      std::is_same<typename futures::detail::Extract<F>::Return, Future<T>>::
+          value,
       "Return type of onError callback must be T or Future<T>");
-  typedef std::remove_reference_t<typename detail::Extract<F>::FirstArg> Exn;
+  typedef std::remove_reference_t<
+      typename futures::detail::Extract<F>::FirstArg>
+      Exn;
 
   Promise<T> p;
   auto f = p.getFuture();
 
   setCallback_(
-      [state = detail::makeCoreCallbackState(
+      [state = futures::detail::makeCoreCallbackState(
            std::move(p), std::forward<F>(func))](Try<T> && t) mutable {
         if (auto e = t.template tryGetExceptionObject<Exn>()) {
           auto tf2 = state.tryInvoke(*e);
@@ -386,18 +454,20 @@ Future<T> Future<T>::onTimeout(Duration dur, F&& func, Timekeeper* tk) {
 
 template <class T>
 template <class F>
-typename std::enable_if<detail::callableWith<F, exception_wrapper>::value &&
-                            detail::Extract<F>::ReturnsFuture::value,
-                        Future<T>>::type
+typename std::enable_if<
+    futures::detail::callableWith<F, exception_wrapper>::value &&
+        futures::detail::Extract<F>::ReturnsFuture::value,
+    Future<T>>::type
 Future<T>::onError(F&& func) {
   static_assert(
-      std::is_same<typename detail::Extract<F>::Return, Future<T>>::value,
+      std::is_same<typename futures::detail::Extract<F>::Return, Future<T>>::
+          value,
       "Return type of onError callback must be T or Future<T>");
 
   Promise<T> p;
   auto f = p.getFuture();
   setCallback_(
-      [state = detail::makeCoreCallbackState(
+      [state = futures::detail::makeCoreCallbackState(
            std::move(p), std::forward<F>(func))](Try<T> t) mutable {
         if (t.hasException()) {
           auto tf2 = state.tryInvoke(std::move(t.exception()));
@@ -420,18 +490,19 @@ Future<T>::onError(F&& func) {
 template <class T>
 template <class F>
 typename std::enable_if<
-  detail::callableWith<F, exception_wrapper>::value &&
-  !detail::Extract<F>::ReturnsFuture::value,
-  Future<T>>::type
+    futures::detail::callableWith<F, exception_wrapper>::value &&
+        !futures::detail::Extract<F>::ReturnsFuture::value,
+    Future<T>>::type
 Future<T>::onError(F&& func) {
   static_assert(
-      std::is_same<typename detail::Extract<F>::Return, Future<T>>::value,
+      std::is_same<typename futures::detail::Extract<F>::Return, Future<T>>::
+          value,
       "Return type of onError callback must be T or Future<T>");
 
   Promise<T> p;
   auto f = p.getFuture();
   setCallback_(
-      [state = detail::makeCoreCallbackState(
+      [state = futures::detail::makeCoreCallbackState(
            std::move(p), std::forward<F>(func))](Try<T> && t) mutable {
         if (t.hasException()) {
           state.setTry(makeTryWith(
@@ -526,6 +597,9 @@ void Future<T>::raise(exception_wrapper exception) {
   core_->raise(std::move(exception));
 }
 
+template <class T>
+Future<T>::Future(futures::detail::EmptyConstruct) noexcept : core_(nullptr) {}
+
 // makeFuture
 
 template <class T>
@@ -587,7 +661,7 @@ makeFuture(E const& e) {
 
 template <class T>
 Future<T> makeFuture(Try<T>&& t) {
-  return Future<T>(new detail::Core<T>(std::move(t)));
+  return Future<T>(new futures::detail::Core<T>(std::move(t)));
 }
 
 // via
@@ -609,13 +683,13 @@ void mapSetCallback(InputIterator first, InputIterator last, F func) {
 // collectAll (variadic)
 
 template <typename... Fs>
-typename detail::CollectAllVariadicContext<
-  typename std::decay<Fs>::type::value_type...>::type
+typename futures::detail::CollectAllVariadicContext<
+    typename std::decay<Fs>::type::value_type...>::type
 collectAll(Fs&&... fs) {
-  auto ctx = std::make_shared<detail::CollectAllVariadicContext<
-    typename std::decay<Fs>::type::value_type...>>();
-  detail::collectVariadicHelper<detail::CollectAllVariadicContext>(
-      ctx, std::forward<Fs>(fs)...);
+  auto ctx = std::make_shared<futures::detail::CollectAllVariadicContext<
+      typename std::decay<Fs>::type::value_type...>>();
+  futures::detail::collectVariadicHelper<
+      futures::detail::CollectAllVariadicContext>(ctx, std::forward<Fs>(fs)...);
   return ctx->p.getFuture();
 }
 
@@ -648,6 +722,7 @@ collectAll(InputIterator first, InputIterator last) {
 
 // collect (iterator)
 
+namespace futures {
 namespace detail {
 
 template <typename T>
@@ -686,17 +761,18 @@ struct CollectContext {
   std::atomic<bool> threw {false};
 };
 
-}
+} // namespace detail
+} // namespace futures
 
 template <class InputIterator>
-Future<typename detail::CollectContext<
-  typename std::iterator_traits<InputIterator>::value_type::value_type>::Result>
+Future<typename futures::detail::CollectContext<typename std::iterator_traits<
+    InputIterator>::value_type::value_type>::Result>
 collect(InputIterator first, InputIterator last) {
   typedef
     typename std::iterator_traits<InputIterator>::value_type::value_type T;
 
-  auto ctx = std::make_shared<detail::CollectContext<T>>(
-    std::distance(first, last));
+  auto ctx = std::make_shared<futures::detail::CollectContext<T>>(
+      std::distance(first, last));
   mapSetCallback<T>(first, last, [ctx](size_t i, Try<T>&& t) {
     if (t.hasException()) {
        if (!ctx->threw.exchange(true)) {
@@ -712,13 +788,13 @@ collect(InputIterator first, InputIterator last) {
 // collect (variadic)
 
 template <typename... Fs>
-typename detail::CollectVariadicContext<
-  typename std::decay<Fs>::type::value_type...>::type
+typename futures::detail::CollectVariadicContext<
+    typename std::decay<Fs>::type::value_type...>::type
 collect(Fs&&... fs) {
-  auto ctx = std::make_shared<detail::CollectVariadicContext<
-    typename std::decay<Fs>::type::value_type...>>();
-  detail::collectVariadicHelper<detail::CollectVariadicContext>(
-      ctx, std::forward<Fs>(fs)...);
+  auto ctx = std::make_shared<futures::detail::CollectVariadicContext<
+      typename std::decay<Fs>::type::value_type...>>();
+  futures::detail::collectVariadicHelper<
+      futures::detail::CollectVariadicContext>(ctx, std::forward<Fs>(fs)...);
   return ctx->p.getFuture();
 }
 
@@ -827,10 +903,10 @@ Future<T> reduce(It first, It last, T&& initial, F&& func) {
   }
 
   typedef typename std::iterator_traits<It>::value_type::value_type ItT;
-  typedef
-      typename std::conditional<detail::callableWith<F, T&&, Try<ItT>&&>::value,
-                                Try<ItT>,
-                                ItT>::type Arg;
+  typedef typename std::conditional<
+      futures::detail::callableWith<F, T&&, Try<ItT>&&>::value,
+      Try<ItT>,
+      ItT>::type Arg;
   typedef isTry<Arg> IsTry;
 
   auto sfunc = std::make_shared<F>(std::move(func));
@@ -1000,20 +1076,26 @@ Future<T> Future<T>::within(Duration dur, E e, Timekeeper* tk) {
   auto ctx = std::make_shared<Context>(std::move(e));
 
   ctx->thisFuture = this->then([ctx](Try<T>&& t) mutable {
-    // TODO: "this" completed first, cancel "after"
     if (ctx->token.exchange(true) == false) {
       ctx->promise.setTry(std::move(t));
     }
   });
 
-  tk->after(dur).then([ctx](Try<Unit> const& t) mutable {
+  // Have time keeper use a weak ptr to hold ctx,
+  // so that ctx can be deallocated as soon as the future job finished.
+  tk->after(dur).then([weakCtx = to_weak_ptr(ctx)](Try<Unit> const& t) mutable {
+    auto lockedCtx = weakCtx.lock();
+    if (!lockedCtx) {
+      // ctx already released. "this" completed first, cancel "after"
+      return;
+    }
     // "after" completed first, cancel "this"
-    ctx->thisFuture.raise(TimedOut());
-    if (ctx->token.exchange(true) == false) {
+    lockedCtx->thisFuture.raise(TimedOut());
+    if (lockedCtx->token.exchange(true) == false) {
       if (t.hasException()) {
-        ctx->promise.setException(std::move(t.exception()));
+        lockedCtx->promise.setException(std::move(t.exception()));
       } else {
-        ctx->promise.setException(std::move(ctx->exception));
+        lockedCtx->promise.setException(std::move(lockedCtx->exception));
       }
     }
   });
@@ -1032,6 +1114,7 @@ Future<T> Future<T>::delayed(Duration dur, Timekeeper* tk) {
     });
 }
 
+namespace futures {
 namespace detail {
 
 template <class T>
@@ -1079,41 +1162,42 @@ void waitViaImpl(Future<T>& f, DrivableExecutor* e) {
   assert(f.isReady());
 }
 
-} // detail
+} // namespace detail
+} // namespace futures
 
 template <class T>
 Future<T>& Future<T>::wait() & {
-  detail::waitImpl(*this);
+  futures::detail::waitImpl(*this);
   return *this;
 }
 
 template <class T>
 Future<T>&& Future<T>::wait() && {
-  detail::waitImpl(*this);
+  futures::detail::waitImpl(*this);
   return std::move(*this);
 }
 
 template <class T>
 Future<T>& Future<T>::wait(Duration dur) & {
-  detail::waitImpl(*this, dur);
+  futures::detail::waitImpl(*this, dur);
   return *this;
 }
 
 template <class T>
 Future<T>&& Future<T>::wait(Duration dur) && {
-  detail::waitImpl(*this, dur);
+  futures::detail::waitImpl(*this, dur);
   return std::move(*this);
 }
 
 template <class T>
 Future<T>& Future<T>::waitVia(DrivableExecutor* e) & {
-  detail::waitViaImpl(*this, e);
+  futures::detail::waitViaImpl(*this, e);
   return *this;
 }
 
 template <class T>
 Future<T>&& Future<T>::waitVia(DrivableExecutor* e) && {
-  detail::waitViaImpl(*this, e);
+  futures::detail::waitViaImpl(*this, e);
   return std::move(*this);
 }
 
@@ -1128,7 +1212,7 @@ T Future<T>::get(Duration dur) {
   if (isReady()) {
     return std::move(value());
   } else {
-    throw TimedOut();
+    throwTimedOut();
   }
 }
 
@@ -1137,20 +1221,23 @@ T Future<T>::getVia(DrivableExecutor* e) {
   return std::move(waitVia(e).value());
 }
 
+namespace futures {
 namespace detail {
-  template <class T>
-  struct TryEquals {
-    static bool equals(const Try<T>& t1, const Try<T>& t2) {
-      return t1.value() == t2.value();
-    }
-  };
-}
+template <class T>
+struct TryEquals {
+  static bool equals(const Try<T>& t1, const Try<T>& t2) {
+    return t1.value() == t2.value();
+  }
+};
+} // namespace detail
+} // namespace futures
 
 template <class T>
 Future<bool> Future<T>::willEqual(Future<T>& f) {
   return collectAll(*this, f).then([](const std::tuple<Try<T>, Try<T>>& t) {
     if (std::get<0>(t).hasValue() && std::get<1>(t).hasValue()) {
-      return detail::TryEquals<T>::equals(std::get<0>(t), std::get<1>(t));
+      return futures::detail::TryEquals<T>::equals(
+          std::get<0>(t), std::get<1>(t));
     } else {
       return false;
       }
@@ -1163,7 +1250,7 @@ Future<T> Future<T>::filter(F&& predicate) {
   return this->then([p = std::forward<F>(predicate)](T val) {
     T const& valConstRef = val;
     if (!p(valConstRef)) {
-      throw PredicateDoesNotObtain();
+      throwPredicateDoesNotObtain();
     }
     return val;
   });
@@ -1217,14 +1304,9 @@ struct retrying_policy_fut_tag {};
 
 template <class Policy>
 struct retrying_policy_traits {
-  using ew = exception_wrapper;
-  FOLLY_CREATE_HAS_MEMBER_FN_TRAITS(has_op_call, operator());
-  template <class Ret>
-  using has_op = typename std::integral_constant<bool,
-        has_op_call<Policy, Ret(size_t, const ew&)>::value ||
-        has_op_call<Policy, Ret(size_t, const ew&) const>::value>;
-  using is_raw = has_op<bool>;
-  using is_fut = has_op<Future<bool>>;
+  using result = std::result_of_t<Policy(size_t, const exception_wrapper&)>;
+  using is_raw = std::is_same<result, bool>;
+  using is_fut = std::is_same<result, Future<bool>>;
   using tag = typename std::conditional<
         is_raw::value, retrying_policy_raw_tag, typename std::conditional<
         is_fut::value, retrying_policy_fut_tag, void>::type>::type;

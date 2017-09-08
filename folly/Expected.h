@@ -15,7 +15,7 @@
  */
 
 /**
- * Like folly::Optional, but can store a value *or* and error.
+ * Like folly::Optional, but can store a value *or* an error.
  *
  * @author Eric Niebler (eniebler@fb.com)
  */
@@ -32,8 +32,9 @@
 #include <folly/Likely.h>
 #include <folly/Portability.h>
 #include <folly/Preprocessor.h>
-#include <folly/Traits.h> // for construct_in_place_t
+#include <folly/Traits.h>
 #include <folly/Unit.h>
+#include <folly/Utility.h>
 
 #define FOLLY_EXPECTED_ID(X) FB_CONCATENATE(FB_CONCATENATE(Folly, X), __LINE__)
 

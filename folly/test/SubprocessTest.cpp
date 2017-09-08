@@ -183,7 +183,7 @@ boost::container::flat_set<int> getOpenFds() {
   return fds;
 }
 
-template<class Runnable>
+template <class Runnable>
 void checkFdLeak(const Runnable& r) {
   // Get the currently open fds.  Check that they are the same both before and
   // after calling the specified function.  We read the open fds from /proc.
@@ -457,7 +457,7 @@ bool readToString(int fd, std::string& buf, size_t maxSize) {
   return (n == 0);
 }
 
-}  // namespace
+} // namespace
 
 TEST(CommunicateSubprocessTest, Chatty) {
   checkFdLeak([] {

@@ -85,7 +85,7 @@ struct dynamic : private boost::operators<dynamic> {
     OBJECT,
     STRING,
   };
-  template<class T, class Enable = void> struct NumericTypeHelper;
+  template <class T, class Enable = void> struct NumericTypeHelper;
 
   /*
    * We support direct iteration of arrays, and indirect iteration of objects.
@@ -96,9 +96,10 @@ struct dynamic : private boost::operators<dynamic> {
    * Object value iterators dereference as the values in the object.
    * Object item iterators dereference as pairs of (key, value).
    */
-private:
+ private:
   typedef std::vector<dynamic> Array;
-public:
+
+ public:
   typedef Array::iterator iterator;
   typedef Array::const_iterator const_iterator;
   typedef dynamic value_type;
@@ -129,11 +130,11 @@ public:
    *   d["key"] = 12;
    *   d["something_else"] = dynamic::array(1, 2, 3, nullptr);
    */
-private:
+ private:
   struct EmptyArrayTag {};
   struct ObjectMaker;
 
-public:
+ public:
   static void array(EmptyArrayTag);
   template <class... Args>
   static dynamic array(Args&& ...args);
@@ -167,14 +168,14 @@ public:
    * Constructors for integral and float types.
    * Other types are SFINAEd out with NumericTypeHelper.
    */
-  template<class T, class NumericType = typename NumericTypeHelper<T>::type>
+  template <class T, class NumericType = typename NumericTypeHelper<T>::type>
   /* implicit */ dynamic(T t);
 
   /*
    * Create a dynamic that is an array of the values from the supplied
    * iterator range.
    */
-  template<class Iterator>
+  template <class Iterator>
   explicit dynamic(Iterator first, Iterator last);
 
   dynamic(dynamic const&);
@@ -328,13 +329,13 @@ public:
   iterator begin();
   iterator end();
 
-private:
+ private:
   /*
    * Helper object returned by keys(), values(), and items().
    */
   template <class T> struct IterableProxy;
 
-public:
+ public:
   /*
    * You can iterate over the keys, values, or items (std::pair of key and
    * value) in an object.  Calling these on non-objects will throw a TypeError.
@@ -417,15 +418,15 @@ public:
   dynamic getDefault(const dynamic& k, dynamic&& v) const&;
   dynamic getDefault(const dynamic& k, const dynamic& v = dynamic::object) &&;
   dynamic getDefault(const dynamic& k, dynamic&& v) &&;
-  template<class K, class V>
+  template <class K, class V>
   dynamic& setDefault(K&& k, V&& v);
   // MSVC 2015 Update 3 needs these extra overloads because if V were a
   // defaulted template parameter, it causes MSVC to consider v an rvalue
   // reference rather than a universal reference, resulting in it not being
   // able to find the correct overload to construct a dynamic with.
-  template<class K>
+  template <class K>
   dynamic& setDefault(K&& k, dynamic&& v);
-  template<class K>
+  template <class K>
   dynamic& setDefault(K&& k, const dynamic& v = dynamic::object);
 
   /*
@@ -445,7 +446,7 @@ public:
    *
    * Invalidates iterators.
    */
-  template<class K, class V> void insert(K&&, V&& val);
+  template <class K, class V> void insert(K&&, V&& val);
 
   /*
    * These functions merge two folly dynamic objects.
@@ -521,32 +522,32 @@ public:
    */
   std::size_t hash() const;
 
-private:
+ private:
   friend struct TypeError;
   struct ObjectImpl;
-  template<class T> struct TypeInfo;
-  template<class T> struct CompareOp;
-  template<class T> struct GetAddrImpl;
-  template<class T> struct PrintImpl;
+  template <class T> struct TypeInfo;
+  template <class T> struct CompareOp;
+  template <class T> struct GetAddrImpl;
+  template <class T> struct PrintImpl;
 
   explicit dynamic(Array&& array);
 
-  template<class T> T const& get() const;
-  template<class T> T&       get();
-  template<class T> T*       get_nothrow() & noexcept;
-  template<class T> T const* get_nothrow() const& noexcept;
-  template<class T> T*       get_nothrow() && noexcept = delete;
-  template<class T> T*       getAddress() noexcept;
-  template<class T> T const* getAddress() const noexcept;
+  template <class T> T const& get() const;
+  template <class T> T&       get();
+  template <class T> T*       get_nothrow() & noexcept;
+  template <class T> T const* get_nothrow() const& noexcept;
+  template <class T> T*       get_nothrow() && noexcept = delete;
+  template <class T> T*       getAddress() noexcept;
+  template <class T> T const* getAddress() const noexcept;
 
-  template<class T> T asImpl() const;
+  template <class T> T asImpl() const;
 
   static char const* typeName(Type);
   void destroy() noexcept;
   void print(std::ostream&) const;
   void print_as_pseudo_json(std::ostream&) const; // see json.cpp
 
-private:
+ private:
   Type type_;
   union Data {
     explicit Data() : nul(nullptr) {}

@@ -144,6 +144,7 @@ set(FOLLY_LINK_LIBRARIES
   ${LIBEVENT_LIB}
   ${LIBGFLAGS_LIBRARY}
   ${LIBGLOG_LIBRARY}
+  Iphlpapi.lib
   Ws2_32.lib
 
   ${FOLLY_SHINY_DEPENDENCIES}
@@ -243,6 +244,7 @@ file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/folly-deps.cmake "\ninclude(folly-target
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/folly-deps.cmake DESTINATION share/folly RENAME folly-config.cmake)
 
 option(BUILD_TESTS "If enabled, compile the tests." OFF)
+option(BUILD_BROKEN_TESTS "If enabled, compile tests that are known to be broken." OFF)
 option(BUILD_HANGING_TESTS "If enabled, compile tests that are known to hang." OFF)
 option(BUILD_SLOW_TESTS "If enabled, compile tests that take a while to run in debug mode." OFF)
 if (BUILD_TESTS)
@@ -292,8 +294,17 @@ if (BUILD_TESTS)
   apply_folly_compile_options_to_target(folly_test_support)
 
   folly_define_tests(
-    DIRECTORY concurrency/
+    DIRECTORY concurrency/test/
       TEST cache_locality_test SOURCES CacheLocalityTest.cpp
+    DIRECTORY executors/test/
+      TEST async_test SOURCES AsyncTest.cpp
+      TEST codel_test SOURCES CodelTest.cpp
+      TEST fiber_io_executor_test SOURCES FiberIOExecutorTest.cpp
+      TEST global_executor_test SOURCES GlobalExecutorTest.cpp
+      TEST serial_executor_test SOURCES SerialExecutorTest.cpp
+      TEST thread_pool_executor_test SOURCES ThreadPoolExecutorTest.cpp
+      TEST threaded_executor_test SOURCES ThreadedExecutorTest.cpp
+      TEST unbounded_blocking_queue_test SOURCES UnboundedBlockingQueueTest.cpp
     DIRECTORY experimental/test/
       TEST autotimer_test SOURCES AutoTimerTest.cpp
       TEST bits_test_2 SOURCES BitsTest.cpp
@@ -347,6 +358,7 @@ if (BUILD_TESTS)
 
     DIRECTORY futures/test/
       TEST barrier_test SOURCES BarrierTest.cpp
+      TEST callback_lifetime_test SOURCES CallbackLifetimeTest.cpp
       TEST collect_test SOURCES CollectTest.cpp
       TEST context_test SOURCES ContextTest.cpp
       TEST core_test SOURCES CoreTest.cpp
@@ -409,7 +421,6 @@ if (BUILD_TESTS)
           AsyncSSLSocketTest.h
         SOURCES
           AsyncPipeTest.cpp
-          AsyncSignalHandlerTest.cpp
           AsyncSocketExceptionTest.cpp
           AsyncSocketTest.cpp
           AsyncSocketTest2.cpp
@@ -420,6 +431,8 @@ if (BUILD_TESTS)
           # This is disabled because it depends on things that don't exist
           # on Windows.
           #EventHandlerTest.cpp
+          # The async signal handler is not supported on Windows.
+          #AsyncSignalHandlerTest.cpp
       TEST async_timeout_test SOURCES AsyncTimeoutTest.cpp
       TEST AsyncUDPSocketTest SOURCES AsyncUDPSocketTest.cpp
       TEST DelayedDestructionTest SOURCES DelayedDestructionTest.cpp
@@ -500,7 +513,8 @@ if (BUILD_TESTS)
       TEST format_other_test SOURCES FormatOtherTest.cpp
       TEST format_test SOURCES FormatTest.cpp
       TEST function_scheduler_test SOURCES FunctionSchedulerTest.cpp
-      TEST function_test SOURCES FunctionTest.cpp
+      TEST function_test BROKEN
+        SOURCES FunctionTest.cpp
       TEST function_ref_test SOURCES FunctionRefTest.cpp
       TEST futex_test SOURCES FutexTest.cpp
       TEST group_varint_test SOURCES GroupVarintTest.cpp
@@ -508,7 +522,8 @@ if (BUILD_TESTS)
       TEST has_member_fn_traits_test SOURCES HasMemberFnTraitsTest.cpp
       TEST hash_test SOURCES HashTest.cpp
       TEST indestructible_test SOURCES IndestructibleTest.cpp
-      TEST indexed_mem_pool_test SOURCES IndexedMemPoolTest.cpp
+      TEST indexed_mem_pool_test BROKEN
+        SOURCES IndexedMemPoolTest.cpp
       # MSVC Preprocessor stringizing raw string literals bug
       #TEST json_test SOURCES JsonTest.cpp
       TEST json_other_test

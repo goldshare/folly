@@ -21,9 +21,9 @@
 #include <atomic>
 #include <memory>
 #include <set>
-#include <vector>
-#include <thread>
 #include <system_error>
+#include <thread>
+#include <vector>
 
 #include <glog/logging.h>
 
@@ -492,7 +492,7 @@ TEST(ConcurrentSkipList, NonTrivialDeallocationWithSysArena) {
   TestNonTrivialDeallocation(list);
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char* argv[]) {
   testing::InitGoogleTest(&argc, argv);

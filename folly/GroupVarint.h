@@ -16,37 +16,39 @@
 
 #pragma once
 
+#include <cstdint>
+#include <limits>
+
+#include <glog/logging.h>
+
 #if !defined(__GNUC__) && !defined(_MSC_VER)
 #error GroupVarint.h requires GCC or MSVC
 #endif
 
 #include <folly/Portability.h>
 
-#if FOLLY_X64 || defined(__i386__) || FOLLY_PPC64 || FOLLY_A64
+#if FOLLY_X64 || defined(__i386__) || FOLLY_PPC64 || FOLLY_AARCH64
 #define HAVE_GROUP_VARINT 1
 
-#include <cstdint>
-#include <limits>
-#include <folly/detail/GroupVarintDetail.h>
 #include <folly/Bits.h>
 #include <folly/Range.h>
+#include <folly/detail/GroupVarintDetail.h>
 #include <folly/portability/Builtins.h>
-#include <glog/logging.h>
 
 #if FOLLY_SSE >= 3
 #include <nmmintrin.h>
 namespace folly {
 namespace detail {
 alignas(16) extern const uint64_t groupVarintSSEMasks[];
-}  // namespace detail
-}  // namespace folly
+} // namespace detail
+} // namespace folly
 #endif
 
 namespace folly {
 namespace detail {
 extern const uint8_t groupVarintLengths[];
-}  // namespace detail
-}  // namespace folly
+} // namespace detail
+} // namespace folly
 
 namespace folly {
 
@@ -623,6 +625,6 @@ class GroupVarintDecoder {
 typedef GroupVarintDecoder<uint32_t> GroupVarint32Decoder;
 typedef GroupVarintDecoder<uint64_t> GroupVarint64Decoder;
 
-}  // namespace folly
+} // namespace folly
 
 #endif /* FOLLY_X64 || defined(__i386__) || FOLLY_PPC64 */

@@ -22,6 +22,12 @@
 
 #pragma once
 
+#ifndef __has_attribute
+#define FOLLY_HAS_ATTRIBUTE(x) 0
+#else
+#define FOLLY_HAS_ATTRIBUTE(x) __has_attribute(x)
+#endif
+
 #ifndef __has_cpp_attribute
 #define FOLLY_HAS_CPP_ATTRIBUTE(x) 0
 #else
@@ -54,6 +60,26 @@
 #endif
 
 /**
+ *  Maybe_unused indicates that a function, variable or parameter might or
+ *  might not be used, e.g.
+ *
+ *  int foo(FOLLY_MAYBE_UNUSED int x) {
+ *    #ifdef USE_X
+ *      return x;
+ *    #else
+ *      return 0;
+ *    #endif
+ *  }
+ */
+#if FOLLY_HAS_CPP_ATTRIBUTE(maybe_unused)
+#define FOLLY_MAYBE_UNUSED [[maybe_unused]]
+#elif FOLLY_HAS_ATTRIBUTE(__unused__) || __GNUC__
+#define FOLLY_MAYBE_UNUSED __attribute__((__unused__))
+#else
+#define FOLLY_MAYBE_UNUSED
+#endif
+
+/**
  * Nullable indicates that a return value or a parameter may be a `nullptr`,
  * e.g.
  *
@@ -72,6 +98,8 @@
  */
 #if FOLLY_HAS_EXTENSION(nullability)
 #define FOLLY_NULLABLE _Nullable
+#define FOLLY_NONNULL _Nonnull
 #else
 #define FOLLY_NULLABLE
+#define FOLLY_NONNULL
 #endif

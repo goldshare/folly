@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 #include <folly/Optional.h>
 
@@ -86,7 +86,7 @@ namespace folly {
 
 namespace detail {
 
-template<class Func>
+template <class Func>
 struct Lazy {
   typedef typename std::result_of<Func()>::type result_type;
 
@@ -111,7 +111,7 @@ struct Lazy {
     return *value_;
   }
 
-private:
+ private:
   Optional<result_type> value_;
   Func func_;
 };
@@ -120,7 +120,7 @@ private:
 
 //////////////////////////////////////////////////////////////////////
 
-template<class Func>
+template <class Func>
 detail::Lazy<typename std::remove_reference<Func>::type>
 lazy(Func&& fun) {
   return detail::Lazy<typename std::remove_reference<Func>::type>(

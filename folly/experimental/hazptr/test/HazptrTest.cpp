@@ -17,13 +17,14 @@
 #define HAZPTR_STATS true
 #define HAZPTR_SCAN_THRESHOLD 10
 
-#include <folly/experimental/hazptr/test/HazptrUse1.h>
-#include <folly/experimental/hazptr/test/HazptrUse2.h>
+#include <folly/experimental/hazptr/debug.h>
 #include <folly/experimental/hazptr/example/LockFreeLIFO.h>
+#include <folly/experimental/hazptr/example/MWMRSet.h>
 #include <folly/experimental/hazptr/example/SWMRList.h>
 #include <folly/experimental/hazptr/example/WideCAS.h>
-#include <folly/experimental/hazptr/debug.h>
 #include <folly/experimental/hazptr/hazptr.h>
+#include <folly/experimental/hazptr/test/HazptrUse1.h>
+#include <folly/experimental/hazptr/test/HazptrUse2.h>
 
 #include <folly/portability/GFlags.h>
 #include <folly/portability/GTest.h>
@@ -197,17 +198,46 @@ TEST_F(HazptrTest, LIFO) {
 
 TEST_F(HazptrTest, SWMRLIST) {
   using T = uint64_t;
-  hazptr_domain custom_domain;
 
   CHECK_GT(FLAGS_num_threads, 0);
   for (int i = 0; i < FLAGS_num_reps; ++i) {
     DEBUG_PRINT("========== start of rep scope");
-    SWMRListSet<T> s(custom_domain);
+    SWMRListSet<T> s;
     std::vector<std::thread> threads(FLAGS_num_threads);
     for (int tid = 0; tid < FLAGS_num_threads; ++tid) {
       threads[tid] = std::thread([&s, tid]() {
         for (int j = tid; j < FLAGS_num_ops; j += FLAGS_num_threads) {
           s.contains(j);
+        }
+      });
+    }
+    for (int j = 0; j < 10; ++j) {
+      s.add(j);
+    }
+    for (int j = 0; j < 10; ++j) {
+      s.remove(j);
+    }
+    for (auto& t : threads) {
+      t.join();
+    }
+    DEBUG_PRINT("========== end of rep scope");
+  }
+}
+
+TEST_F(HazptrTest, MWMRSet) {
+  using T = uint64_t;
+
+  CHECK_GT(FLAGS_num_threads, 0);
+  for (int i = 0; i < FLAGS_num_reps; ++i) {
+    DEBUG_PRINT("========== start of rep scope");
+    MWMRListSet<T> s;
+    std::vector<std::thread> threads(FLAGS_num_threads);
+    for (int tid = 0; tid < FLAGS_num_threads; ++tid) {
+      threads[tid] = std::thread([&s, tid]() {
+        for (int j = tid; j < FLAGS_num_ops; j += FLAGS_num_threads) {
+          s.contains(j);
+          s.add(j);
+          s.remove(j);
         }
       });
     }

@@ -147,7 +147,7 @@ TEST(Conv, Floating2Floating) {
     EXPECT_TRUE(shouldWork == std::numeric_limits<float>::min() ||
                 shouldWork == 0.f);
   } catch (...) {
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   }
 }
 
@@ -601,16 +601,34 @@ TEST(Conv, StringPieceToDouble) {
   // Test NaN conversion
   try {
     to<double>("not a number");
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (const std::range_error &) {
   }
 
+  EXPECT_TRUE(std::isnan(to<double>("nan")));
   EXPECT_TRUE(std::isnan(to<double>("NaN")));
+  EXPECT_TRUE(std::isnan(to<double>("NAN")));
+  EXPECT_TRUE(std::isnan(to<double>("-nan")));
+  EXPECT_TRUE(std::isnan(to<double>("-NaN")));
+  EXPECT_TRUE(std::isnan(to<double>("-NAN")));
+
   EXPECT_EQ(to<double>("inf"), numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("Inf"), numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("INF"), numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("inF"), numeric_limits<double>::infinity());
   EXPECT_EQ(to<double>("infinity"), numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("Infinity"), numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("INFINITY"), numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("iNfInItY"), numeric_limits<double>::infinity());
   EXPECT_THROW(to<double>("infinitX"), std::range_error);
   EXPECT_EQ(to<double>("-inf"), -numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("-Inf"), -numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("-INF"), -numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("-inF"), -numeric_limits<double>::infinity());
   EXPECT_EQ(to<double>("-infinity"), -numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("-Infinity"), -numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("-INFINITY"), -numeric_limits<double>::infinity());
+  EXPECT_EQ(to<double>("-iNfInItY"), -numeric_limits<double>::infinity());
   EXPECT_THROW(to<double>("-infinitX"), std::range_error);
 }
 
@@ -620,7 +638,7 @@ TEST(Conv, EmptyStringToInt) {
 
   try {
     to<int>(pc);
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (const std::range_error &) {
   }
 }
@@ -631,7 +649,7 @@ TEST(Conv, CorruptedStringToInt) {
 
   try {
     to<int64_t>(&pc);
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (const std::range_error &) {
   }
 }
@@ -642,7 +660,7 @@ TEST(Conv, EmptyStringToDouble) {
 
   try {
     to<double>(pc);
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (const std::range_error &) {
   }
 }
@@ -653,7 +671,7 @@ TEST(Conv, IntToDouble) {
   /* This seems not work in ubuntu11.10, gcc 4.6.1
   try {
     auto f = to<float>(957837589847);
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (std::range_error& e) {
     //LOG(INFO) << e.what();
   }
@@ -666,7 +684,7 @@ TEST(Conv, DoubleToInt) {
   try {
     auto i2 = to<int>(42.1);
     LOG(ERROR) << "to<int> returned " << i2 << " instead of throwing";
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (std::range_error&) {
     //LOG(INFO) << e.what();
   }
@@ -683,7 +701,7 @@ TEST(Conv, EnumToInt) {
     LOG(ERROR) << "to<char> returned "
                << static_cast<unsigned int>(i2)
                << " instead of throwing";
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (std::range_error&) {
     //LOG(INFO) << e.what();
   }
@@ -708,7 +726,7 @@ TEST(Conv, IntToEnum) {
     LOG(ERROR) << "to<A> returned "
                << static_cast<unsigned int>(i2)
                << " instead of throwing";
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (std::range_error&) {
     //LOG(INFO) << e.what();
   }
@@ -725,7 +743,7 @@ TEST(Conv, UnsignedEnum) {
   try {
     auto i = to<int32_t>(x);
     LOG(ERROR) << "to<int32_t> returned " << i << " instead of throwing";
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (std::range_error&) {
   }
 }
@@ -764,7 +782,7 @@ TEST(Conv, IntegralToBool) {
   EXPECT_TRUE(to<bool>(42ul));
 }
 
-template<typename Src>
+template <typename Src>
 void testStr2Bool() {
   EXPECT_FALSE(to<bool>(Src("0")));
   EXPECT_FALSE(to<bool>(Src("  000  ")));
@@ -897,7 +915,7 @@ void testConvError(
   std::string where = to<std::string>(__FILE__, "(", line, "): ");
   try {
     auto res = expr();
-    EXPECT_TRUE(false) << where << exprStr << " -> " << res;
+    ADD_FAILURE() << where << exprStr << " -> " << res;
   } catch (const ConversionError& e) {
     EXPECT_EQ(code, e.errorCode()) << where << exprStr;
     std::string str(e.what());

@@ -19,8 +19,8 @@
 // Implements two commands: "cat" and "echo", which behave similarly to their
 // Unix homonyms.
 
-#include <folly/String.h>
 #include <folly/ScopeGuard.h>
+#include <folly/String.h>
 #include <folly/experimental/NestedCommandLineApp.h>
 #include <folly/experimental/ProgramOptions.h>
 
@@ -157,7 +157,7 @@ void runEcho(const po::variables_map& options,
   }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char *argv[]) {
   // Initialize a NestedCommandLineApp object.

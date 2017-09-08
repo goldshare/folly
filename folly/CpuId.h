@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+
 #include <folly/Portability.h>
 
 #ifdef _MSC_VER
@@ -213,4 +214,4 @@ class CpuId {
   uint32_t f7c_ = 0;
 };
 
-}  // namespace folly
+} // namespace folly

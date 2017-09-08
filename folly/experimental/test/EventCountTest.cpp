@@ -21,6 +21,7 @@
 #include <random>
 #include <thread>
 #include <vector>
+
 #include <glog/logging.h>
 
 #include <folly/Random.h>
@@ -73,7 +74,7 @@ void randomPartition(Random& random, T key, int n,
   }
 }
 
-}  // namespace
+} // namespace
 
 TEST(EventCount, Simple) {
   // We're basically testing for no deadlock.

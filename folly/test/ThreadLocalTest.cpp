@@ -26,8 +26,8 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <climits>
 #include <condition_variable>
-#include <limits.h>
 #include <map>
 #include <mutex>
 #include <set>
@@ -345,7 +345,7 @@ struct Tag {};
 struct Foo {
   folly::ThreadLocal<int, Tag> tl;
 };
-}  // namespace
+} // namespace
 
 TEST(ThreadLocal, Movable1) {
   Foo a;
@@ -415,7 +415,7 @@ class FillObject {
   uint64_t data_[kFillObjectSize];
 };
 
-}  // namespace
+} // namespace
 
 TEST(ThreadLocal, Stress) {
   static constexpr size_t numFillObjects = 250;
@@ -473,7 +473,7 @@ int totalValue() {
   return value;
 }
 
-}  // namespace
+} // namespace
 
 #ifdef FOLLY_HAVE_PTHREAD_ATFORK
 TEST(ThreadLocal, Fork) {
@@ -530,7 +530,7 @@ TEST(ThreadLocal, Fork) {
     EXPECT_TRUE(WIFEXITED(status));
     EXPECT_EQ(0, WEXITSTATUS(status));
   } else {
-    EXPECT_TRUE(false) << "fork failed";
+    ADD_FAILURE() << "fork failed";
   }
 
   EXPECT_EQ(2, totalValue());
@@ -573,7 +573,7 @@ TEST(ThreadLocal, Fork2) {
     EXPECT_TRUE(WIFEXITED(status));
     EXPECT_EQ(0, WEXITSTATUS(status));
   } else {
-    EXPECT_TRUE(false) << "fork failed";
+    ADD_FAILURE() << "fork failed";
   }
 }
 

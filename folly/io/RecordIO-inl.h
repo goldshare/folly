@@ -20,7 +20,7 @@
 
 #include <boost/iterator/iterator_facade.hpp>
 
-#include <folly/SpookyHashV2.h>
+#include <folly/hash/SpookyHashV2.h>
 
 namespace folly {
 
@@ -82,7 +82,7 @@ FOLLY_PACK_POP
 static_assert(offsetof(Header, headerHash) + sizeof(Header::headerHash) ==
               sizeof(Header), "invalid header layout");
 
-}  // namespace detail
+} // namespace detail
 
 constexpr size_t headerSize() { return sizeof(detail::Header); }
 
@@ -90,6 +90,6 @@ inline RecordInfo findRecord(ByteRange range, uint32_t fileId) {
   return findRecord(range, range, fileId);
 }
 
-}  // namespace recordio_helpers
+} // namespace recordio_helpers
 
-}  // namespaces
+} // namespace folly

@@ -16,8 +16,10 @@
 
 #pragma once
 
-#include <folly/detail/TryDetail.h>
+#include <folly/Utility.h>
+
 #include <stdexcept>
+#include <tuple>
 
 namespace folly {
 
@@ -116,13 +118,20 @@ const T& Try<T>::value() const & {
 }
 
 template <class T>
+const T&& Try<T>::value() const && {
+  throwIfFailed();
+  return std::move(value_);
+}
+
+template <class T>
 void Try<T>::throwIfFailed() const {
-  if (contains_ != Contains::VALUE) {
-    if (contains_ == Contains::EXCEPTION) {
+  switch (contains_) {
+    case Contains::VALUE:
+      return;
+    case Contains::EXCEPTION:
       e_.throw_exception();
-    } else {
-      throw UsingUninitializedTry();
-    }
+    default:
+      try_detail::throwUsingUninitializedTry();
   }
 }
 
@@ -130,15 +139,6 @@ void Try<void>::throwIfFailed() const {
   if (!hasValue_) {
     e_.throw_exception();
   }
-}
-
-template <typename T>
-inline T moveFromTry(Try<T>& t) {
-  return std::move(t.value());
-}
-
-inline void moveFromTry(Try<void>& t) {
-  return t.value();
 }
 
 template <typename F>
@@ -171,10 +171,31 @@ makeTryWith(F&& f) {
   }
 }
 
-template <typename... Ts>
-std::tuple<Ts...> unwrapTryTuple(std::tuple<folly::Try<Ts>...>&& ts) {
-  return detail::TryTuple<Ts...>::unwrap(
-      std::forward<std::tuple<folly::Try<Ts>...>>(ts));
+namespace try_detail {
+
+/**
+ * Trait that removes the layer of Try abstractions from the passed in type
+ */
+template <typename Type>
+struct RemoveTry;
+template <template <typename...> class TupleType, typename... Types>
+struct RemoveTry<TupleType<folly::Try<Types>...>> {
+  using type = TupleType<Types...>;
+};
+
+template <std::size_t... Indices, typename Tuple>
+auto unwrapTryTupleImpl(folly::index_sequence<Indices...>, Tuple&& instance) {
+  using std::get;
+  using ReturnType = typename RemoveTry<typename std::decay<Tuple>::type>::type;
+  return ReturnType{(get<Indices>(std::forward<Tuple>(instance)).value())...};
+}
+} // namespace try_detail
+
+template <typename Tuple>
+auto unwrapTryTuple(Tuple&& instance) {
+  using TupleDecayed = typename std::decay<Tuple>::type;
+  using Seq = folly::make_index_sequence<std::tuple_size<TupleDecayed>::value>;
+  return try_detail::unwrapTryTupleImpl(Seq{}, std::forward<Tuple>(instance));
 }
 
-} // folly
+} // namespace folly

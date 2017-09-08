@@ -22,10 +22,10 @@
 #include <string>
 #include <utility> // std::pair
 
-#include <folly/Range.h>
 #include <folly/IPAddressException.h>
 #include <folly/IPAddressV4.h>
 #include <folly/IPAddressV6.h>
+#include <folly/Range.h>
 #include <folly/detail/IPAddress.h>
 
 namespace folly {
@@ -65,6 +65,12 @@ typedef std::pair<IPAddress, uint8_t> CIDRNetwork;
  * @encode
  */
 class IPAddress {
+ private:
+  template <typename F>
+  auto pick(F f) const {
+    return isV4() ? f(asV4()) : f(asV6());
+  }
+
  public:
   // returns true iff the input string can be parsed as an ip-address
   static bool validate(StringPiece ip);
@@ -89,7 +95,9 @@ class IPAddress {
    * @return pair with IPAddress network and uint8_t mask
    */
   static CIDRNetwork createNetwork(
-    StringPiece ipSlashCidr, int defaultCidr = -1, bool mask = true);
+      StringPiece ipSlashCidr,
+      int defaultCidr = -1,
+      bool mask = true);
 
   /**
    * Return a string representation of a CIDR block created with createNetwork.
@@ -116,8 +124,9 @@ class IPAddress {
 
   // Given 2 IPAddress,mask pairs extract the longest common IPAddress,
   // mask pair
-  static CIDRNetwork longestCommonPrefix(const CIDRNetwork& one,
-                                         const CIDRNetwork& two);
+  static CIDRNetwork longestCommonPrefix(
+      const CIDRNetwork& one,
+      const CIDRNetwork& two);
 
   /**
    * Constructs an uninitialized IPAddress.
@@ -182,10 +191,12 @@ class IPAddress {
   }
 
   // Return sa_family_t of IPAddress
-  sa_family_t family() const { return family_; }
+  sa_family_t family() const {
+    return family_;
+  }
 
   // Populate sockaddr_storage with an appropriate value
-  int toSockaddrStorage(sockaddr_storage *dest, uint16_t port = 0) const {
+  int toSockaddrStorage(sockaddr_storage* dest, uint16_t port = 0) const {
     if (dest == nullptr) {
       throw IPAddressFormatException("dest must not be null");
     }
@@ -193,7 +204,7 @@ class IPAddress {
     dest->ss_family = family();
 
     if (isV4()) {
-      sockaddr_in *sin = reinterpret_cast<sockaddr_in*>(dest);
+      sockaddr_in* sin = reinterpret_cast<sockaddr_in*>(dest);
       sin->sin_addr = asV4().toAddr();
       sin->sin_port = port;
 #if defined(__APPLE__)
@@ -201,7 +212,7 @@ class IPAddress {
 #endif
       return sizeof(*sin);
     } else if (isV6()) {
-      sockaddr_in6 *sin = reinterpret_cast<sockaddr_in6*>(dest);
+      sockaddr_in6* sin = reinterpret_cast<sockaddr_in6*>(dest);
       sin->sin6_addr = asV6().toAddr();
       sin->sin6_port = port;
       sin->sin6_scope_id = asV6().getScopeId();
@@ -254,43 +265,49 @@ class IPAddress {
   }
 
   // @return true if address is uninitialized
-  bool empty() const { return (family_ == AF_UNSPEC); }
+  bool empty() const {
+    return family_ == AF_UNSPEC;
+  }
 
   // @return true if address is initialized
-  explicit operator bool() const { return !empty(); }
+  explicit operator bool() const {
+    return !empty();
+  }
 
   // @return true if this is an IPAddressV4 instance
-  bool isV4() const { return (family_ == AF_INET); }
+  bool isV4() const {
+    return family_ == AF_INET;
+  }
 
   // @return true if this is an IPAddressV6 instance
-  bool isV6() const { return (family_ == AF_INET6); }
+  bool isV6() const {
+    return family_ == AF_INET6;
+  }
 
   // @return true if this address is all zeros
   bool isZero() const {
-    return isV4() ? asV4().isZero()
-                  : asV6().isZero();
+    return pick([&](auto& _) { return _.isZero(); });
   }
 
   // Number of bits in the address representation.
   size_t bitCount() const {
-    return isV4() ? IPAddressV4::bitCount()
-                  : IPAddressV6::bitCount();
+    return pick([&](auto& _) { return _.bitCount(); });
   }
   // Number of bytes in the address representation.
   size_t byteCount() const {
     return bitCount() / 8;
   }
-  //get nth most significant bit - 0 indexed
+  // get nth most significant bit - 0 indexed
   bool getNthMSBit(size_t bitIndex) const {
     return detail::getNthMSBitImpl(*this, bitIndex, family());
   }
-  //get nth most significant byte - 0 indexed
+  // get nth most significant byte - 0 indexed
   uint8_t getNthMSByte(size_t byteIndex) const;
-  //get nth bit - 0 indexed
+  // get nth bit - 0 indexed
   bool getNthLSBit(size_t bitIndex) const {
     return getNthMSBit(bitCount() - bitIndex - 1);
   }
-  //get nth byte - 0 indexed
+  // get nth byte - 0 indexed
   uint8_t getNthLSByte(size_t byteIndex) const {
     return getNthMSByte(byteCount() - byteIndex - 1);
   }
@@ -302,32 +319,27 @@ class IPAddress {
    * {family:'AF_INET|AF_INET6', addr:'address', hash:long}.
    */
   std::string toJson() const {
-    return isV4() ? asV4().toJson()
-                  : asV6().toJson();
+    return pick([&](auto& _) { return _.toJson(); });
   }
 
   // Hash of address
   std::size_t hash() const {
-    return isV4() ? asV4().hash()
-                  : asV6().hash();
+    return pick([&](auto& _) { return _.hash(); });
   }
 
   // Return true if the address qualifies as localhost.
   bool isLoopback() const {
-    return isV4() ? asV4().isLoopback()
-                  : asV6().isLoopback();
+    return pick([&](auto& _) { return _.isLoopback(); });
   }
 
   // Return true if the address qualifies as link local
   bool isLinkLocal() const {
-    return isV4() ? asV4().isLinkLocal()
-                  : asV6().isLinkLocal();
+    return pick([&](auto& _) { return _.isLinkLocal(); });
   }
 
   // Return true if the address qualifies as broadcast.
   bool isLinkLocalBroadcast() const {
-    return isV4() ? asV4().isLinkLocalBroadcast()
-                  : asV6().isLinkLocalBroadcast();
+    return pick([&](auto& _) { return _.isLinkLocalBroadcast(); });
   }
 
   /**
@@ -337,8 +349,7 @@ class IPAddress {
    * 2000::/3, ffxe::/16.
    */
   bool isNonroutable() const {
-    return isV4() ? asV4().isNonroutable()
-                  : asV6().isNonroutable();
+    return pick([&](auto& _) { return _.isNonroutable(); });
   }
 
   /**
@@ -346,14 +357,12 @@ class IPAddress {
    * (for example, 192.168.xxx.xxx or fc00::/7 addresses)
    */
   bool isPrivate() const {
-    return isV4() ? asV4().isPrivate()
-                  : asV6().isPrivate();
+    return pick([&](auto& _) { return _.isPrivate(); });
   }
 
   // Return true if the address is a multicast address.
   bool isMulticast() const {
-    return isV4() ? asV4().isMulticast()
-                  : asV6().isMulticast();
+    return pick([&](auto& _) { return _.isMulticast(); });
   }
 
   /**
@@ -363,8 +372,7 @@ class IPAddress {
    * @return IPAddress instance with bits set to 0
    */
   IPAddress mask(uint8_t numBits) const {
-    return isV4() ? IPAddress(asV4().mask(numBits))
-                  : IPAddress(asV6().mask(numBits));
+    return pick([&](auto& _) { return IPAddress(_.mask(numBits)); });
   }
 
   /**
@@ -373,8 +381,7 @@ class IPAddress {
    * @throws IPAddressFormatException on inet_ntop error
    */
   std::string str() const {
-    return isV4() ? asV4().str()
-                  : asV6().str();
+    return pick([&](auto& _) { return _.str(); });
   }
 
   /**
@@ -383,27 +390,24 @@ class IPAddress {
    * this is the hex representation with : characters inserted every 4 digits.
    */
   std::string toFullyQualified() const {
-    return isV4() ? asV4().toFullyQualified()
-                  : asV6().toFullyQualified();
+    return pick([&](auto& _) { return _.toFullyQualified(); });
   }
 
   /// Same as toFullyQualified but append to an output string.
   void toFullyQualifiedAppend(std::string& out) const {
-    return isV4() ? asV4().toFullyQualifiedAppend(out)
-                  : asV6().toFullyQualifiedAppend(out);
+    return pick([&](auto& _) { return _.toFullyQualifiedAppend(out); });
   }
 
   // Address version (4 or 6)
   uint8_t version() const {
-    return isV4() ? asV4().version()
-                  : asV6().version();
+    return pick([&](auto& _) { return _.version(); });
   }
 
   /**
    * Access to address bytes, in network byte order.
    */
   const unsigned char* bytes() const {
-    return isV4() ? asV4().bytes() : asV6().bytes();
+    return pick([&](auto& _) { return _.bytes(); });
   }
 
  private:
@@ -417,8 +421,8 @@ class IPAddress {
     IPAddressV46() {
       std::memset(this, 0, sizeof(IPAddressV46));
     }
-    explicit IPAddressV46(const IPAddressV4& addr): ipV4Addr(addr) {}
-    explicit IPAddressV46(const IPAddressV6& addr): ipV6Addr(addr) {}
+    explicit IPAddressV46(const IPAddressV4& addr) : ipV4Addr(addr) {}
+    explicit IPAddressV46(const IPAddressV6& addr) : ipV6Addr(addr) {}
   } IPAddressV46;
   IPAddressV46 addr_;
   sa_family_t family_;
@@ -457,13 +461,13 @@ inline bool operator>=(const IPAddress& a, const IPAddress& b) {
   return !(a < b);
 }
 
-}  // folly
+} // namespace folly
 
 namespace std {
-template<>
+template <>
 struct hash<folly::IPAddress> {
   size_t operator()(const folly::IPAddress& addr) const {
     return addr.hash();
   }
 };
-}  // std
+} // namespace std

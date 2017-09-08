@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include <stdarg.h>
-#include <algorithm>
 #include <folly/GroupVarint.h>
+
+#include <algorithm>
+#include <cstdarg>
 
 // On platforms where it's not supported, GroupVarint will be compiled out.
 #if HAVE_GROUP_VARINT
@@ -118,7 +119,7 @@ void testGroupVarint64(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
   EXPECT_EQ(e, fe);
 }
 
-}  // namespace
+} // namespace
 
 TEST(GroupVarint, GroupVarint32) {
   EXPECT_EQ(0, GroupVarint32::maxSize(0));

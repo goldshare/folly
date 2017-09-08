@@ -31,8 +31,8 @@
 #include <mutex>
 
 #include <folly/File.h>
-#include <folly/Range.h>
 #include <folly/MemoryMapping.h>
+#include <folly/Range.h>
 #include <folly/io/IOBuf.h>
 
 namespace folly {
@@ -172,8 +172,8 @@ RecordInfo findRecord(ByteRange range, uint32_t fileId);
  */
 RecordInfo validateRecord(ByteRange range, uint32_t fileId);
 
-}  // namespace recordio_helpers
+} // namespace recordio_helpers
 
-}  // namespaces
+} // namespace folly
 
 #include <folly/io/RecordIO-inl.h>

@@ -38,16 +38,14 @@
  */
 
 #include <array>
-#include <cinttypes>
-#include <type_traits>
-#include <boost/noncopyable.hpp>
-#include <cstdlib>
-#include <mutex>
 #include <atomic>
+#include <cassert>
+#include <cstdint>
+#include <mutex>
+#include <type_traits>
 
-#include <glog/logging.h>
-#include <folly/detail/Sleeper.h>
 #include <folly/Portability.h>
+#include <folly/detail/Sleeper.h>
 
 namespace folly {
 
@@ -85,11 +83,11 @@ struct MicroSpinLock {
         sleeper.wait();
       }
     } while (!try_lock());
-    DCHECK(payload()->load() == LOCKED);
+    assert(payload()->load() == LOCKED);
   }
 
   void unlock() {
-    CHECK(payload()->load() == LOCKED);
+    assert(payload()->load() == LOCKED);
     payload()->store(FREE, std::memory_order_release);
   }
 
@@ -141,10 +139,11 @@ struct FOLLY_ALIGNED_MAX SpinLockArray {
                 "Invalid size of PaddedSpinLock");
 
   // Check if T can theoretically cross a cache line.
-  static_assert(alignof(std::max_align_t) > 0 &&
-                FOLLY_CACHE_LINE_SIZE % alignof(std::max_align_t) == 0 &&
-                sizeof(T) <= alignof(std::max_align_t),
-                "T can cross cache line boundaries");
+  static_assert(
+      folly::max_align_v > 0 &&
+          FOLLY_CACHE_LINE_SIZE % folly::max_align_v == 0 &&
+          sizeof(T) <= folly::max_align_v,
+      "T can cross cache line boundaries");
 
   char padding_[FOLLY_CACHE_LINE_SIZE];
   std::array<PaddedSpinLock, N> data_;

@@ -17,8 +17,9 @@
 #pragma once
 
 #include <cstddef>
-#include <type_traits>
 #include <limits>
+#include <type_traits>
+
 #include <glog/logging.h>
 
 #include <folly/Bits.h>
@@ -104,7 +105,7 @@ struct BitsTraits<T, typename std::enable_if<
   }
 };
 
-}  // namespace detail
+} // namespace detail
 
 /**
  * Wrapper class with static methods for various bit-level operations,
@@ -311,4 +312,4 @@ inline size_t Bits<T, Traits>::count(const T* begin, const T* end) {
   return n;
 }
 
-}  // namespace folly
+} // namespace folly

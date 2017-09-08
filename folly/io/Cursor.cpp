@@ -13,12 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <folly/io/Cursor.h>
 
 #include <cstdio>
+
 #include <folly/ScopeGuard.h>
 
-namespace folly { namespace io {
+namespace folly {
+namespace io {
 
 void Appender::printf(const char* fmt, ...) {
   va_list ap;
@@ -68,5 +71,5 @@ void Appender::vprintf(const char* fmt, va_list ap) {
   }
   append(len);
 }
-
-}}  // folly::io
+} // namespace io
+} // namespace folly

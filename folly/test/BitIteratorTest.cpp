@@ -17,8 +17,8 @@
 #include <folly/Bits.h>
 
 #include <algorithm>
-#include <type_traits>
 #include <limits>
+#include <type_traits>
 #include <vector>
 
 #include <folly/Benchmark.h>
@@ -55,7 +55,7 @@ void checkRange(INT exp, IT begin, IT end) {
   }
 }
 
-}  // namespace
+} // namespace
 
 TEST(BitIterator, Simple) {
   std::vector<int> v;

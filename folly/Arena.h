@@ -21,6 +21,7 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+
 #include <boost/intrusive/slist.hpp>
 
 #include <folly/Conv.h>
@@ -240,6 +241,6 @@ class SysArena : public Arena<SysAlloc> {
 template <>
 struct IsArenaAllocator<SysArena> : std::true_type { };
 
-}  // namespace folly
+} // namespace folly
 
 #include <folly/Arena-inl.h>

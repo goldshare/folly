@@ -287,7 +287,7 @@ inline exception_wrapper::exception_wrapper(OnHeapTag, in_place_type_t<Ex>, As&&
 
 template <class Ex, typename... As>
 inline exception_wrapper::exception_wrapper(InSituTag, in_place_type_t<Ex>, As&&... as)
-    : buff_{in_place<Ex>, std::forward<As>(as)...},
+    : buff_{in_place_type<Ex>, std::forward<As>(as)...},
       vptr_(&InPlace<Ex>::ops_) {}
 
 inline exception_wrapper::exception_wrapper(exception_wrapper&& that) noexcept
@@ -347,7 +347,7 @@ template <
 inline exception_wrapper::exception_wrapper(Ex&& ex)
     : exception_wrapper{
         PlacementOf<Ex_>{},
-        in_place<Ex_>,
+        in_place_type<Ex_>,
         exception_wrapper_detail::dont_slice(std::forward<Ex>(ex))} {
 }
 
@@ -359,7 +359,7 @@ template <
 inline exception_wrapper::exception_wrapper(in_place_t, Ex&& ex)
     : exception_wrapper{
         PlacementOf<Ex_>{},
-        in_place<Ex_>,
+        in_place_type<Ex_>,
         exception_wrapper_detail::dont_slice(std::forward<Ex>(ex))} {
 }
 
@@ -371,7 +371,7 @@ template <
 inline exception_wrapper::exception_wrapper(in_place_type_t<Ex>, As&&... as)
     : exception_wrapper{
         PlacementOf<Ex>{},
-        in_place<Ex>,
+        in_place_type<Ex>,
         std::forward<As>(as)...} {
 }
 
@@ -459,7 +459,7 @@ inline bool exception_wrapper::is_compatible_with() const noexcept {
 
 [[noreturn]] inline void exception_wrapper::throw_exception() const {
   vptr_->throw_(this);
-  onNoExceptionError();
+  onNoExceptionError(__func__);
 }
 
 template <class CatchFn, bool IsConst>
@@ -645,7 +645,7 @@ inline void exception_wrapper::handle(CatchFns... fns) {
   using AllStdEx =
       exception_wrapper_detail::AllOf<IsStdException, arg_type<CatchFns>...>;
   if (!*this) {
-    onNoExceptionError();
+    onNoExceptionError(__func__);
   }
   this->handle_(AllStdEx{}, *this, fns...);
 }
@@ -654,7 +654,7 @@ inline void exception_wrapper::handle(CatchFns... fns) const {
   using AllStdEx =
       exception_wrapper_detail::AllOf<IsStdException, arg_type<CatchFns>...>;
   if (!*this) {
-    onNoExceptionError();
+    onNoExceptionError(__func__);
   }
   this->handle_(AllStdEx{}, *this, fns...);
 }

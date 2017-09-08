@@ -16,8 +16,8 @@
 
 #include <folly/io/async/AsyncUDPSocket.h>
 
-#include <folly/io/async/EventBase.h>
 #include <folly/Likely.h>
+#include <folly/io/async/EventBase.h>
 #include <folly/portability/Fcntl.h>
 #include <folly/portability/Sockets.h>
 #include <folly/portability/Unistd.h>
@@ -36,9 +36,9 @@ namespace folly {
 
 AsyncUDPSocket::AsyncUDPSocket(EventBase* evb)
     : EventHandler(CHECK_NOTNULL(evb)),
+      readCallback_(nullptr),
       eventBase_(evb),
-      fd_(-1),
-      readCallback_(nullptr) {
+      fd_(-1) {
   evb->dcheckIsInEventBaseThread();
 }
 
@@ -176,7 +176,7 @@ ssize_t AsyncUDPSocket::writev(const folly::SocketAddress& address,
   msg.msg_controllen = 0;
   msg.msg_flags = 0;
 
-  return ::sendmsg(fd_, &msg, 0);
+  return sendmsg(fd_, &msg, 0);
 }
 
 void AsyncUDPSocket::resumeRead(ReadCallback* cob) {
@@ -297,4 +297,4 @@ bool AsyncUDPSocket::updateRegistration() noexcept {
   return registerHandler(uint16_t(flags | PERSIST));
 }
 
-} // Namespace
+} // namespace folly

@@ -142,7 +142,7 @@ TEST(IOBuf, Cursor) {
   c.write((uint8_t)40); // OK
   try {
     c.write((uint8_t)10); // Bad write, checked should except.
-    EXPECT_TRUE(false);
+    ADD_FAILURE();
   } catch (...) {
   }
 }
@@ -190,7 +190,7 @@ std::string toString(const IOBuf& buf) {
   return str;
 }
 
-}  // namespace
+} // namespace
 
 TEST(IOBuf, PullAndPeek) {
   std::unique_ptr<IOBuf> iobuf1(IOBuf::create(10));

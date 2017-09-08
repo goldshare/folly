@@ -25,8 +25,13 @@
 namespace folly {
 
 template <class T>
-Promise<T>::Promise() : retrieved_(false), core_(new detail::Core<T>())
-{}
+Promise<T> Promise<T>::makeEmpty() noexcept {
+  return Promise<T>(futures::detail::EmptyConstruct{});
+}
+
+template <class T>
+Promise<T>::Promise()
+    : retrieved_(false), core_(new futures::detail::Core<T>()) {}
 
 template <class T>
 Promise<T>::Promise(Promise<T>&& other) noexcept
@@ -44,23 +49,23 @@ Promise<T>& Promise<T>::operator=(Promise<T>&& other) noexcept {
 
 template <class T>
 void Promise<T>::throwIfFulfilled() {
-  if (UNLIKELY(!core_)) {
-    throw NoState();
+  if (!core_) {
+    throwNoState();
   }
-  if (UNLIKELY(core_->ready())) {
-    throw PromiseAlreadySatisfied();
+  if (core_->ready()) {
+    throwPromiseAlreadySatisfied();
   }
 }
 
 template <class T>
 void Promise<T>::throwIfRetrieved() {
-  if (UNLIKELY(retrieved_)) {
-    throw FutureAlreadyRetrieved();
+  if (retrieved_) {
+    throwFutureAlreadyRetrieved();
   }
 }
 
 template <class T>
-Promise<T>::Promise(detail::EmptyConstruct) noexcept
+Promise<T>::Promise(futures::detail::EmptyConstruct) noexcept
     : retrieved_(false), core_(nullptr) {}
 
 template <class T>
@@ -94,13 +99,7 @@ Promise<T>::setException(E const& e) {
 
 template <class T>
 void Promise<T>::setException(std::exception_ptr const& ep) {
-  try {
-    std::rethrow_exception(ep);
-  } catch (const std::exception& e) {
-    setException(exception_wrapper(std::current_exception(), e));
-  } catch (...) {
-    setException(exception_wrapper(std::current_exception()));
-  }
+  setException(exception_wrapper::from_exception_ptr(ep));
 }
 
 template <class T>

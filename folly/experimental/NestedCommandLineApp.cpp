@@ -17,6 +17,7 @@
 #include <folly/experimental/NestedCommandLineApp.h>
 
 #include <iostream>
+
 #include <folly/FileUtil.h>
 #include <folly/Format.h>
 #include <folly/experimental/io/FsUtil.h>
@@ -36,7 +37,7 @@ std::string guessProgramName() {
   }
 }
 
-}  // namespace
+} // namespace
 
 ProgramExit::ProgramExit(int status, const std::string& msg)
   : std::runtime_error(msg),
@@ -270,4 +271,4 @@ void NestedCommandLineApp::doRun(const std::vector<std::string>& args) {
   info.command(vm, cmdArgs);
 }
 
-}  // namespaces
+} // namespace folly

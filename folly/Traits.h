@@ -18,10 +18,10 @@
 
 #pragma once
 
-#include <memory>
-#include <limits>
-#include <type_traits>
 #include <functional>
+#include <limits>
+#include <memory>
+#include <type_traits>
 
 #include <folly/Portability.h>
 
@@ -172,11 +172,45 @@ using _t = typename T::type;
  *    struct has_value_type<T, folly::void_t<typename T::value_type>>
  *        : std::true_type {};
  */
-#if defined(__cpp_lib_void_t) || defined(_MSC_VER)
+
+/**
+ * There is a bug in gcc that causes it to ignore unused template parameter
+ * arguments in template aliases and does not cause substitution failures.
+ * This defect has been recorded here:
+ * http://open-std.org/JTC1/SC22/WG21/docs/cwg_defects.html#1558.
+ *
+ * This causes the implementation of std::void_t to be buggy, as it is likely
+ * defined as something like the following:
+ *
+ *  template <typename...>
+ *  using void_t = void;
+ *
+ * This causes the compiler to ignore all the template arguments and does not
+ * help when one wants to cause substitution failures.  Rather declarations
+ * which have void_t in orthogonal specializations are treated as the same.
+ * For example, assuming the possible `T` types are only allowed to have
+ * either the alias `one` or `two` and never both or none:
+ *
+ *  template <typename T,
+ *            typename std::void_t<std::decay_t<T>::one>* = nullptr>
+ *  void foo(T&&) {}
+ *  template <typename T,
+ *            typename std::void_t<std::decay_t<T>::two>* = nullptr>
+ *  void foo(T&&) {}
+ *
+ * The second foo() will be a redefinition because it conflicts with the first
+ * one; void_t does not cause substitution failures - the template types are
+ * just ignored.
+ *
+ * Till then only the non-buggy MSVC std::void_t can be used, and for the rest
+ * folly::void_t will continue to be used because it does not use unnamed
+ * template parameters for the top level implementation of void_t.
+ */
+#if defined(_MSC_VER)
 
 /* using override */ using std::void_t;
 
-#else // defined(__cpp_lib_void_t) || defined(_MSC_VER)
+#else // defined(_MSC_VER)
 
 namespace traits_detail {
 template <class...>
@@ -188,7 +222,7 @@ struct void_t_ {
 template <class... Ts>
 using void_t = _t<traits_detail::void_t_<Ts...>>;
 
-#endif // defined(__cpp_lib_void_t) || defined(_MSC_VER)
+#endif // defined(_MSC_VER)
 
 /**
  * IsRelocatable<T>::value describes the ability of moving around
@@ -387,7 +421,13 @@ struct Bools {
 // Lighter-weight than Conjunction, but evaluates all sub-conditions eagerly.
 template <class... Ts>
 struct StrictConjunction
-    : std::is_same<Bools<Ts::value..., true>, Bools<true, Ts::value...>> {};
+    : std::is_same<Bools<Ts::value...>, Bools<(Ts::value || true)...>> {};
+
+template <class... Ts>
+struct StrictDisjunction
+  : Negation<
+      std::is_same<Bools<Ts::value...>, Bools<(Ts::value && false)...>>
+    > {};
 
 } // namespace folly
 
@@ -396,12 +436,12 @@ struct StrictConjunction
  * regular type, use it like this:
  *
  * // Make sure you're at namespace ::folly scope
- * template<> FOLLY_ASSUME_RELOCATABLE(MyType)
+ * template <> FOLLY_ASSUME_RELOCATABLE(MyType)
  *
  * When using it with a template type, use it like this:
  *
  * // Make sure you're at namespace ::folly scope
- * template<class T1, class T2>
+ * template <class T1, class T2>
  * FOLLY_ASSUME_RELOCATABLE(MyType<T1, T2>)
  */
 #define FOLLY_ASSUME_RELOCATABLE(...) \
@@ -509,15 +549,8 @@ struct IsRelocatable< std::pair<T, U> >
         IsRelocatable<U>::value> {};
 
 // Is T one of T1, T2, ..., Tn?
-template <class T, class... Ts>
-struct IsOneOf {
-  enum { value = false };
-};
-
-template <class T, class T1, class... Ts>
-struct IsOneOf<T, T1, Ts...> {
-  enum { value = std::is_same<T, T1>::value || IsOneOf<T, Ts...>::value };
-};
+template <typename T, typename... Ts>
+using IsOneOf = StrictDisjunction<std::is_same<T, Ts>...>;
 
 /*
  * Complementary type traits for integral comparisons.
@@ -571,7 +604,7 @@ bool greater_than_impl(LHS const lhs) {
 
 FOLLY_POP_WARNING
 
-} // namespace detail {
+} // namespace detail
 
 // same as `x < 0`
 template <typename T>
@@ -606,100 +639,6 @@ bool greater_than(LHS const lhs) {
     RHS, rhs, typename std::remove_reference<LHS>::type
   >(lhs);
 }
-
-namespace traits_detail {
-struct InPlaceTag {};
-template <class>
-struct InPlaceTypeTag {};
-template <std::size_t>
-struct InPlaceIndexTag {};
-}
-
-/**
- * Like std::piecewise_construct, a tag type & instance used for in-place
- * construction of non-movable contained types, e.g. by Synchronized.
- * Follows the naming and design of std::in_place suggested in
- * http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0032r2.pdf
- */
-using in_place_t = traits_detail::InPlaceTag (&)(traits_detail::InPlaceTag);
-
-template <class T>
-using in_place_type_t =
-    traits_detail::InPlaceTypeTag<T> (&)(traits_detail::InPlaceTypeTag<T>);
-
-template <std::size_t I>
-using in_place_index_t =
-    traits_detail::InPlaceIndexTag<I> (&)(traits_detail::InPlaceIndexTag<I>);
-
-inline traits_detail::InPlaceTag in_place(traits_detail::InPlaceTag = {}) {
-  return {};
-}
-
-template <class T>
-inline traits_detail::InPlaceTypeTag<T> in_place(
-    traits_detail::InPlaceTypeTag<T> = {}) {
-  return {};
-}
-
-template <std::size_t I>
-inline traits_detail::InPlaceIndexTag<I> in_place(
-    traits_detail::InPlaceIndexTag<I> = {}) {
-  return {};
-}
-
-// For backwards compatibility:
-using construct_in_place_t = in_place_t;
-
-inline traits_detail::InPlaceTag construct_in_place(
-    traits_detail::InPlaceTag = {}) {
-  return {};
-}
-
-/**
- * Initializer lists are a powerful compile time syntax introduced in C++11
- * but due to their often conflicting syntax they are not used by APIs for
- * construction.
- *
- * Further standard conforming compilers *strongly* favor an
- * std::initalizer_list overload for construction if one exists.  The
- * following is a simple tag used to disambiguate construction with
- * initializer lists and regular uniform initialization.
- *
- * For example consider the following case
- *
- *  class Something {
- *  public:
- *    explicit Something(int);
- *    Something(std::intiializer_list<int>);
- *
- *    operator int();
- *  };
- *
- *  ...
- *  Something something{1}; // SURPRISE!!
- *
- * The last call to instantiate the Something object will go to the
- * initializer_list overload.  Which may be surprising to users.
- *
- * If however this tag was used to disambiguate such construction it would be
- * easy for users to see which construction overload their code was referring
- * to.  For example
- *
- *  class Something {
- *  public:
- *    explicit Something(int);
- *    Something(folly::initlist_construct_t, std::initializer_list<int>);
- *
- *    operator int();
- *  };
- *
- *  ...
- *  Something something_one{1}; // not the initializer_list overload
- *  Something something_two{folly::initlist_construct, {1}}; // correct
- */
-struct initlist_construct_t {};
-constexpr initlist_construct_t initlist_construct{};
-
 } // namespace folly
 
 // Assume nothing when compiling with MSVC.

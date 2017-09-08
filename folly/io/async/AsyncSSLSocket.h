@@ -18,22 +18,21 @@
 
 #include <iomanip>
 
+#include <folly/Bits.h>
 #include <folly/Optional.h>
 #include <folly/String.h>
+#include <folly/io/Cursor.h>
+#include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSocket.h>
 #include <folly/io/async/AsyncTimeout.h>
 #include <folly/io/async/SSLContext.h>
 #include <folly/io/async/TimeoutManager.h>
-#include <folly/ssl/OpenSSLPtrTypes.h>
 #include <folly/io/async/ssl/OpenSSLUtils.h>
 #include <folly/io/async/ssl/SSLErrors.h>
 #include <folly/io/async/ssl/TLSDefinitions.h>
-
-#include <folly/Bits.h>
-#include <folly/io/IOBuf.h>
-#include <folly/io/Cursor.h>
 #include <folly/portability/OpenSSL.h>
 #include <folly/portability/Sockets.h>
+#include <folly/ssl/OpenSSLPtrTypes.h>
 
 namespace folly {
 
@@ -283,6 +282,9 @@ class AsyncSSLSocket : public virtual AsyncSocket {
   std::string getApplicationProtocol() noexcept override;
 
   std::string getSecurityProtocol() const override {
+    if (sslState_ == STATE_UNENCRYPTED) {
+      return "";
+    }
     return "TLS";
   }
 
@@ -555,6 +557,18 @@ class AsyncSSLSocket : public virtual AsyncSocket {
   void detachSSLContext();
 #endif
 
+  /**
+   * Returns the original folly::SSLContext associated with this socket.
+   *
+   * Suitable for use in AsyncSSLSocket constructor to construct a new
+   * AsyncSSLSocket using an existing socket's context.
+   *
+   * switchServerSSLContext() does not affect this return value.
+   */
+  const std::shared_ptr<folly::SSLContext>& getSSLContext() const {
+    return ctx_;
+  }
+
 #if FOLLY_OPENSSL_HAS_SNI
   /**
    * Switch the SSLContext to continue the SSL handshake.
@@ -684,6 +698,36 @@ class AsyncSSLSocket : public virtual AsyncSocket {
 
     X509* cert = SSL_get_peer_certificate(ssl_);
     return ssl::X509UniquePtr(cert);
+  }
+
+  /**
+   * A set of possible outcomes of certificate validation.
+   */
+  enum class CertValidationResult {
+    CERT_VALID, // Cert is valid.
+    CERT_MISSING, // No cert is provided.
+    CERT_INVALID_FUTURE, // Cert has start datetime in the future.
+    CERT_INVALID_EXPIRED, // Cert has expired.
+    CERT_INVALID_BAD_CHAIN, // Cert has bad chain.
+    CERT_INVALID_OTHER, // Cert is invalid due to other reasons.
+  };
+
+  /**
+   * Get the validation result of client cert. If the server side has not
+   * set this value, it will return folly::none; otherwise a value in
+   * CertValidationResult.
+   */
+  const Optional<CertValidationResult> getClientCertValidationResult() {
+    return clientCertValidationResult_;
+  }
+
+  /**
+   * Set the validation result of client cert. Used by server side.
+   * @param result A value of CertValidationResult wrapped by folly::Optional.
+   */
+  void setClientCertValidationResult(
+      const Optional<CertValidationResult>& result) {
+    clientCertValidationResult_ = result;
   }
 
   /**
@@ -857,6 +901,8 @@ class AsyncSSLSocket : public virtual AsyncSocket {
 
   folly::SSLContext::SSLVerifyPeerEnum
     verifyPeer_{folly::SSLContext::SSLVerifyPeerEnum::USE_CTX};
+
+  Optional<CertValidationResult> clientCertValidationResult_{none};
 
   // Callback for SSL_CTX_set_verify()
   static int sslVerifyCallback(int preverifyOk, X509_STORE_CTX* ctx);

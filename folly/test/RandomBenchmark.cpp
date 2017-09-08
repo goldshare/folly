@@ -16,13 +16,17 @@
 
 #include <folly/Random.h>
 
-#include <folly/Benchmark.h>
-#include <folly/Foreach.h>
+#include <random>
+#include <thread>
 
 #include <glog/logging.h>
 
-#include <thread>
-#include <random>
+#include <folly/Benchmark.h>
+#include <folly/Foreach.h>
+
+#if FOLLY_HAVE_EXTRANDOM_SFMT19937
+#include <ext/random>
+#endif
 
 using namespace folly;
 
@@ -45,6 +49,18 @@ BENCHMARK(mt19937, n) {
 
   FOR_EACH_RANGE(i, 0, n) { doNotOptimizeAway(rng()); }
 }
+
+#if FOLLY_HAVE_EXTRANDOM_SFMT19937
+BENCHMARK(sfmt19937, n) {
+  BenchmarkSuspender braces;
+  std::random_device rd;
+  __gnu_cxx::sfmt19937 rng(rd());
+
+  braces.dismiss();
+
+  FOR_EACH_RANGE(i, 0, n) { doNotOptimizeAway(rng()); }
+}
+#endif
 
 BENCHMARK(threadprng, n) {
   BenchmarkSuspender braces;

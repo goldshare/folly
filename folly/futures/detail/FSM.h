@@ -18,16 +18,19 @@
 
 #include <atomic>
 #include <mutex>
+
 #include <folly/MicroSpinLock.h>
 
-namespace folly { namespace detail {
+namespace folly {
+namespace futures {
+namespace detail {
 
 /// Finite State Machine helper base class.
 /// Inherit from this.
 /// For best results, use an "enum class" for Enum.
 template <class Enum>
 class FSM {
-private:
+ private:
   // I am not templatizing this because folly::MicroSpinLock needs to be
   // zero-initialized (or call init) which isn't generic enough for something
   // that behaves like std::mutex. :(
@@ -40,7 +43,7 @@ private:
   // An optimization would be to use a static conditional on the Enum type.
   std::atomic<Enum> state_;
 
-public:
+ public:
   explicit FSM(Enum startState) : state_(startState) {}
 
   Enum getState() const noexcept {
@@ -125,5 +128,6 @@ public:
 #define FSM_BREAK done = true; break;
 #define FSM_END }}}
 
-
-}} // folly::detail
+} // namespace detail
+} // namespace futures
+} // namespace folly

@@ -38,6 +38,10 @@ extern const char* kTestCert;
 extern const char* kTestKey;
 extern const char* kTestCA;
 
+extern const char* kClientTestCert;
+extern const char* kClientTestKey;
+extern const char* kClientTestCA;
+
 enum StateEnum { STATE_WAITING, STATE_SUCCEEDED, STATE_FAILED };
 
 class HandshakeCallback;
@@ -110,6 +114,8 @@ class TestSSLServer {
   EventBase& getEventBase() {
     return evb_;
   }
+
+  void loadTestCerts();
 
   const SocketAddress& getAddress() const {
     return address_;

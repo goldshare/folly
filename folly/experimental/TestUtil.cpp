@@ -16,10 +16,11 @@
 
 #include <folly/experimental/TestUtil.h>
 
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #include <boost/regex.hpp>
+
 #include <folly/Exception.h>
 #include <folly/File.h>
 #include <folly/FileUtil.h>
@@ -28,7 +29,7 @@
 #include <folly/portability/Fcntl.h>
 
 #ifdef _WIN32
-#include <crtdbg.h>
+#include <crtdbg.h> // @manual
 #endif
 
 namespace folly {
@@ -49,7 +50,7 @@ fs::path generateUniquePath(fs::path path, StringPiece namePrefix) {
   return path;
 }
 
-}  // namespace
+} // namespace
 
 TemporaryFile::TemporaryFile(StringPiece namePrefix,
                              fs::path dir,
@@ -73,6 +74,13 @@ TemporaryFile::TemporaryFile(StringPiece namePrefix,
   }
 }
 
+void TemporaryFile::close() {
+  if (::close(fd_) == -1) {
+    PLOG(ERROR) << "close failed";
+  }
+  fd_ = -1;
+}
+
 const fs::path& TemporaryFile::path() const {
   CHECK(scope_ != Scope::UNLINK_IMMEDIATELY);
   DCHECK(!path_.empty());
@@ -81,7 +89,7 @@ const fs::path& TemporaryFile::path() const {
 
 TemporaryFile::~TemporaryFile() {
   if (fd_ != -1 && closeOnDestruction_) {
-    if (close(fd_) == -1) {
+    if (::close(fd_) == -1) {
       PLOG(ERROR) << "close failed";
     }
   }
@@ -167,7 +175,7 @@ bool hasNoPCREPatternMatch(StringPiece pattern, StringPiece target) {
   return !hasPCREPatternMatch(pattern, target);
 }
 
-}  // namespace detail
+} // namespace detail
 
 CaptureFD::CaptureFD(int fd, ChunkCob chunk_cob)
     : chunkCob_(std::move(chunk_cob)), fd_(fd), readOffset_(0) {
@@ -214,5 +222,5 @@ std::string CaptureFD::readIncremental() {
   return std::string(buf.get(), size);
 }
 
-}  // namespace test
-}  // namespace folly
+} // namespace test
+} // namespace folly

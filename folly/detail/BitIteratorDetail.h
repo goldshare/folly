@@ -18,6 +18,7 @@
 
 #include <iterator>
 #include <type_traits>
+
 #include <boost/iterator/iterator_adaptor.hpp>
 
 namespace folly {
@@ -84,6 +85,5 @@ struct BitIteratorBase {
     ssize_t> type;
 };
 
-
-}  // namespace bititerator_detail
-}  // namespace folly
+} // namespace bititerator_detail
+} // namespace folly

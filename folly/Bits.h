@@ -62,21 +62,21 @@
 #define FOLLY_INTRINSIC_CONSTEXPR const
 #endif
 
-#include <folly/Portability.h>
-#include <folly/portability/Builtins.h>
-
-#include <folly/Assume.h>
-#include <folly/detail/BitIteratorDetail.h>
-#include <folly/Likely.h>
-
 #include <cassert>
-#include <cstring>
 #include <cinttypes>
+#include <cstdint>
+#include <cstring>
 #include <iterator>
 #include <limits>
 #include <type_traits>
+
 #include <boost/iterator/iterator_adaptor.hpp>
-#include <stdint.h>
+
+#include <folly/Assume.h>
+#include <folly/Likely.h>
+#include <folly/Portability.h>
+#include <folly/detail/BitIteratorDetail.h>
+#include <folly/portability/Builtins.h>
 
 namespace folly {
 
@@ -282,7 +282,7 @@ struct EndianInt {
   }
 };
 
-}  // namespace detail
+} // namespace detail
 
 // big* convert between native and big-endian representations
 // little* convert between native and little-endian representations
@@ -550,4 +550,4 @@ inline void storeUnaligned(void* p, T value) {
   }
 }
 
-}  // namespace folly
+} // namespace folly

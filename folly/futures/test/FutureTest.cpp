@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <folly/futures/Future.h>
-#include <folly/Unit.h>
-#include <folly/Memory.h>
-#include <folly/Executor.h>
-#include <folly/dynamic.h>
 #include <folly/Baton.h>
+#include <folly/Executor.h>
+#include <folly/Memory.h>
+#include <folly/Unit.h>
+#include <folly/dynamic.h>
+#include <folly/futures/Future.h>
 #include <folly/portability/GTest.h>
 
 #include <algorithm>
@@ -39,6 +39,11 @@ typedef FutureException eggs_t;
 static eggs_t eggs("eggs");
 
 // Future
+
+TEST(Future, makeEmpty) {
+  auto f = Future<int>::makeEmpty();
+  EXPECT_THROW(f.isReady(), NoState);
+}
 
 TEST(Future, futureDefaultCtor) {
   Future<Unit>();
@@ -643,7 +648,7 @@ TEST(Future, finishBigLambda) {
   // bulk_data, to be captured in the lambda passed to Future::then.
   // This is meant to force that the lambda can't be stored inside
   // the Future object.
-  std::array<char, sizeof(detail::Core<int>)> bulk_data = {{0}};
+  std::array<char, sizeof(futures::detail::Core<int>)> bulk_data = {{0}};
 
   // suppress gcc warning about bulk_data not being used
   EXPECT_EQ(bulk_data[0], 0);
@@ -805,6 +810,11 @@ TEST(Future, ImplicitConstructor) {
   //auto f2 = []() -> Future<Unit> { }();
 }
 
+TEST(Future, InPlaceConstructor) {
+  auto f = Future<std::pair<int, double>>(in_place, 5, 3.2);
+  EXPECT_EQ(5, f.value().first);
+}
+
 TEST(Future, thenDynamic) {
   // folly::dynamic has a constructor that takes any T, this test makes
   // sure that we call the then lambda with folly::dynamic and not
@@ -925,4 +935,36 @@ TEST(Future, invokeCallbackReturningFutureAsRvalue) {
   EXPECT_EQ(103, makeFuture<int>(100).then(foo).value());
   EXPECT_EQ(203, makeFuture<int>(200).then(cfoo).value());
   EXPECT_EQ(303, makeFuture<int>(300).then(Foo()).value());
+}
+
+TEST(Future, futureWithinCtxCleanedUpWhenTaskFinishedInTime) {
+  // Used to track the use_count of callbackInput even outside of its scope
+  std::weak_ptr<int> target;
+  {
+    Promise<std::shared_ptr<int>> promise;
+    auto input = std::make_shared<int>(1);
+    auto longEnough = std::chrono::milliseconds(1000);
+
+    promise.getFuture()
+        .within(longEnough)
+        .then([&target](
+                  folly::Try<std::shared_ptr<int>>&& callbackInput) mutable {
+          target = callbackInput.value();
+        });
+    promise.setValue(input);
+  }
+  // After promise's life cycle is finished, make sure no one is holding the
+  // input anymore, in other words, ctx should have been cleaned up.
+  EXPECT_EQ(0, target.use_count());
+}
+
+TEST(Future, futureWithinNoValueReferenceWhenTimeOut) {
+  Promise<std::shared_ptr<int>> promise;
+  auto veryShort = std::chrono::milliseconds(1);
+
+  promise.getFuture().within(veryShort).then(
+      [](folly::Try<std::shared_ptr<int>>&& callbackInput) {
+        // Timeout is fired. Verify callbackInput is not referenced
+        EXPECT_EQ(0, callbackInput.value().use_count());
+      });
 }

@@ -16,20 +16,18 @@
 
 #include <folly/SmallLocks.h>
 
-#include <folly/Random.h>
-
 #include <cassert>
+#include <condition_variable>
 #include <cstdio>
 #include <mutex>
-#include <condition_variable>
 #include <string>
-#include <vector>
-#include <pthread.h>
-
 #include <thread>
+#include <vector>
 
+#include <folly/Random.h>
 #include <folly/portability/Asm.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/PThread.h>
 #include <folly/portability/Unistd.h>
 
 using folly::MSLGuard;
@@ -71,7 +69,7 @@ void splock_test() {
   const int max = 1000;
   auto rng = folly::ThreadLocalPRNG();
   for (int i = 0; i < max; i++) {
-    folly::asm_pause();
+    folly::asm_volatile_pause();
     MSLGuard g(v.lock);
 
     int first = v.ar[0];
@@ -85,7 +83,7 @@ void splock_test() {
 }
 
 #ifdef FOLLY_PICO_SPIN_LOCK_H_
-template<class T> struct PslTest {
+template <class T> struct PslTest {
   PicoSpinLock<T> lock;
 
   PslTest() { lock.init(); }
@@ -104,7 +102,7 @@ template<class T> struct PslTest {
   }
 };
 
-template<class T>
+template <class T>
 void doPslTest() {
   PslTest<T> testObj;
 

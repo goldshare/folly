@@ -222,11 +222,12 @@ class MacAddress {
 
 /* Define toAppend() so to<string> will work */
 template <class Tgt>
-typename std::enable_if<IsSomeString<Tgt>::value>::type
-toAppend(MacAddress address, Tgt* result) {
+typename std::enable_if<IsSomeString<Tgt>::value>::type toAppend(
+    MacAddress address,
+    Tgt* result) {
   toAppend(address.toString(), result);
 }
 
 std::ostream& operator<<(std::ostream& os, MacAddress address);
 
-}  // folly
+} // namespace folly
